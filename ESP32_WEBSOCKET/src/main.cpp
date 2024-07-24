@@ -71,8 +71,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {  
       String sensorReadings = getSensorReadings();
       Serial.print(sensorReadings);
-      notifyClients(sensorReadings);
-    //}
+      notifyClients(sensorReadings);    
   }
 }
 
@@ -105,8 +104,7 @@ void readAndNotifyClientsFunc(void *parameter){
       Serial.print(sensorReadings);
       notifyClients(sensorReadings);
       lastTime = millis();
-    }
-    delay(100);
+    }    
     ws.cleanupClients();
   }
 }
