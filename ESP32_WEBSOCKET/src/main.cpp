@@ -28,7 +28,7 @@ JSONVar readings;
 
 // Timer variables
 unsigned long lastTime = 0;
-unsigned long timerDelay = 10;
+unsigned long timerDelay = 100;
 
 // Initialize LittleFS
 void initLittleFS() {

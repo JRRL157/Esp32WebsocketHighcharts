@@ -72,7 +72,7 @@ var chartT = new Highcharts.Chart({
     },
     xAxis: {
       type: 'datetime',
-      dateTimeLabelFormats: { second: '%H:%M:%S' }
+      dateTimeLabelFormats: { millisecond: '%M:%S.%L' }
     },
     yAxis: {
       title: {
