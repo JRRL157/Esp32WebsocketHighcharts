@@ -40,7 +40,8 @@ void initLittleFS() {
 
 
 // Get Sensor Readings and return JSON object
-String getSensorReadings(){  
+String getSensorReadings(){
+  readings["epoch"] = lastTime + timerDelay;
   readings["temperature"] = random(16,40);
   readings["humidity"] = random(60,95);
   readings["pressure"] = random(100,760);
