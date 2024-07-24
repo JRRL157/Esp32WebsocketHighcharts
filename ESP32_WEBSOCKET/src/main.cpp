@@ -101,7 +101,7 @@ void readAndNotifyClientsFunc(void *parameter){
   for(;;){
       if ((millis() - lastTime) > timerDelay) {
       String sensorReadings = getSensorReadings();
-      Serial.print(sensorReadings);
+      //Serial.print(sensorReadings);
       notifyClients(sensorReadings);
       lastTime = millis();
     }    
