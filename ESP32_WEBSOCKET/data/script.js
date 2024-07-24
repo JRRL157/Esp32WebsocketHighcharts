@@ -72,7 +72,7 @@ var chartT = new Highcharts.Chart({
     },
     xAxis: {
       type: 'datetime',
-      dateTimeLabelFormats: { second: '%H:%M:%S.%L' }
+      dateTimeLabelFormats: { second: '%H:%M:%S' }
     },
     yAxis: {
       title: {
@@ -91,30 +91,27 @@ function plotTemperature(jsonValue) {
     console.log(keys);
     console.log(keys.length);
 
-    for (var i = 0; i < keys.length; i++){
-        var x = (new Date()).getTime();
-        console.log(x);
+    for (var i = 1; i < keys.length; i++){
+        var timeKey = keys[0];
+        var t = Number(jsonValue[timeKey]);
+        console.log(t);
+        
         const key = keys[i];
         var y = Number(jsonValue[key]);
         console.log(y);
 
-        if(chartT.series[i].data.length > 40) {
-        chartT.series[i].addPoint([x, y], true, true, true);
+        if(chartT.series[i-1].data.length > 40) {
+            chartT.series[i-1].addPoint([t, y], true, true, true);
         } else {
-        chartT.series[i].addPoint([x, y], true, false, true);
-        }
-
+            chartT.series[i-1].addPoint([t, y], true, false, true);
+        }            
     }
 }
 
 // Function that receives the message from the ESP32 with the readings
 function onMessage(event) {
     console.log(event.data);
-    var myObj = JSON.parse(event.data);
-    var keys = Object.keys(myObj);
+    var jsonObj = JSON.parse(event.data);
 
-    for (var i = 0; i < keys.length; i++){
-        var key = keys[i];
-        document.getElementById(key).innerHTML = myObj[key];
-    }
+    plotTemperature(jsonObj);
 }
