@@ -28,7 +28,7 @@ JSONVar readings;
 
 // Timer variables
 unsigned long lastTime = 0;
-unsigned long timerDelay = 500;
+unsigned long timerDelay = 10;
 
 // Initialize LittleFS
 void initLittleFS() {
@@ -68,12 +68,7 @@ void notifyClients(String sensorReadings) {
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
-  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
-    //data[len] = 0;
-    //String message = (char*)data;
-    // Check if the message is "getReadings"
-    //if (strcmp((char*)data, "getReadings") == 0) {
-      //if it is, send current sensor readings
+  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {  
       String sensorReadings = getSensorReadings();
       Serial.print(sensorReadings);
       notifyClients(sensorReadings);
@@ -107,7 +102,7 @@ void readAndNotifyClientsFunc(void *parameter){
   for(;;){
       if ((millis() - lastTime) > timerDelay) {
       String sensorReadings = getSensorReadings();
-      //Serial.print(sensorReadings);
+      Serial.print(sensorReadings);
       notifyClients(sensorReadings);
       lastTime = millis();
     }
@@ -119,7 +114,7 @@ void readAndNotifyClientsFunc(void *parameter){
 TaskHandle_t readAndNotifyTask;
 
 void setup() {
-  //Serial.begin(115200);
+  Serial.begin(115200);
   initWiFi();
   initLittleFS();
   initWebSocket();
