@@ -10,6 +10,7 @@
 #include <ESPAsyncWebServer.h>
 #include "LittleFS.h"
 #include <Arduino_JSON.h>
+#include <queue>
 
 const IPAddress apIP = IPAddress(192,168,4,1);
 const IPAddress mask = IPAddress(255,255,255,0);
@@ -28,7 +29,7 @@ JSONVar readings;
 
 // Timer variables
 unsigned long lastTime = 0;
-unsigned long timerDelay = 100;
+unsigned long timerDelay = 10;
 
 // Initialize LittleFS
 void initLittleFS() {
@@ -97,19 +98,28 @@ void initWebSocket() {
   server.addHandler(&ws);
 }
 
-void readAndNotifyClientsFunc(void *parameter){
+TaskHandle_t readSensorTask;
+TaskHandle_t notifyTask;
+
+std::queue<String> q;
+String sensorReadings;
+
+void readSensorReadingFunc(void *parameter){
   for(;;){
-      if ((millis() - lastTime) > timerDelay) {
-      String sensorReadings = getSensorReadings();
-      //Serial.print(sensorReadings);
-      notifyClients(sensorReadings);
+    if ((millis() - lastTime) > timerDelay) {
+      sensorReadings = getSensorReadings();
       lastTime = millis();
-    }    
+    }
     ws.cleanupClients();
   }
 }
 
-TaskHandle_t readAndNotifyTask;
+void notifyClientFunc(void *param){
+  for(;;){        
+    notifyClients(sensorReadings);
+    delay(300); //ERROR: Too many messages queued when delay = 100ms
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -118,14 +128,24 @@ void setup() {
   initWebSocket();
 
   xTaskCreatePinnedToCore(
-          readAndNotifyClientsFunc,   /* Task function. */
-          "readAndNotifyClients",     /* name of task. */
-          10000,                      /* Stack size of task */
-          NULL,                       /* parameter of the task */
-          1,                          /* priority of the task */
-          &readAndNotifyTask,         /* Task handle to keep track of created task */
-          1                           /* Running at second core */
-  );                         
+          readSensorReadingFunc,   /* Task function. */
+          "readSensorReading",     /* name of task. */
+          10000,                   /* Stack size of task */
+          NULL,                    /* parameter of the task */
+          1,                       /* priority of the task */
+          &readSensorTask,         /* Task handle to keep track of created task */
+          1                        /* Running at second core */
+  );
+
+  xTaskCreatePinnedToCore(
+          notifyClientFunc,   /* Task function. */
+          "notifyClient",     /* name of task. */
+          10000,              /* Stack size of task */
+          NULL,               /* parameter of the task */
+          1,                  /* priority of the task */
+          &notifyTask,        /* Task handle to keep track of created task */
+          0                   /* Running at first core */
+  );
 
   // Web Server Root URL
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
