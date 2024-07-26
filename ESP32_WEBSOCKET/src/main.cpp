@@ -31,6 +31,10 @@ JSONVar readings;
 unsigned long lastTime = 0;
 unsigned long timerDelay = 10;
 
+// Experiment state
+bool start = false;
+
+
 // Initialize LittleFS
 void initLittleFS() {
   if (!LittleFS.begin(true)) {
@@ -69,10 +73,13 @@ void notifyClients(String sensorReadings) {
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
-  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {  
+  if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {        
+    if (strcmp((char*)data, "start") == 0) {
       String sensorReadings = getSensorReadings();
       //Serial.print(sensorReadings);
-      notifyClients(sensorReadings);    
+      start = true;
+      notifyClients(sensorReadings);
+    }
   }
 }
 
