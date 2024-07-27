@@ -5,6 +5,7 @@ window.addEventListener('load', onload);
 
 function onload(event) {
     initWebSocket();
+    initButton();
 }
 
 function getReadings(){
@@ -19,10 +20,19 @@ function initWebSocket() {
     websocket.onmessage = onMessage;
 }
 
+function initButton() {
+    document.getElementById('button').addEventListener('click', start);
+}
+
+function start(){
+    // const timeoutField = document.getElementById('timeout');
+    websocket.send('start');
+}
+
 // When websocket is established, call the getReadings() function
 function onOpen(event) {
     console.log('Connection opened');
-    getReadings();
+    //getReadings();
 }
 
 function onClose(event) {
@@ -112,6 +122,16 @@ function plotTemperature(jsonValue) {
 function onMessage(event) {
     console.log(event.data);
     var jsonObj = JSON.parse(event.data);
+    const button = document.getElementById("button");
 
-    plotTemperature(jsonObj);
+    if(event.data != undefined && event.data === "1"){
+        console.log("Botão acionado com sucesso!");
+        button.disabled = true;    
+    }else if(event.data != undefined && event.data === "0"){
+        console.log("Teste finalizado!");
+        button.disabled = false;
+    }else if(event.data != undefined && event.data != "1" && event.data != "0"){
+        plotTemperature(jsonObj);
+    }
 }
+

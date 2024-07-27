@@ -28,8 +28,17 @@ AsyncWebSocket ws("/ws");
 JSONVar readings;
 
 // Timer variables
-unsigned long lastTime = 0;
-unsigned long timerDelay = 10;
+unsigned long LAST_TIME = 0;
+unsigned long TIMER_DELAY = 10;
+unsigned long TIMEOUT_TIME = 30000;
+
+unsigned long startTime;
+
+TaskHandle_t readSensorTask;
+TaskHandle_t notifyTask;
+
+std::queue<String> q;
+String sensorReadings;
 
 // Experiment state
 bool start = false;
@@ -46,7 +55,7 @@ void initLittleFS() {
 
 // Get Sensor Readings and return JSON object
 String getSensorReadings(){
-  readings["epoch"] = lastTime + timerDelay;
+  readings["epoch"] = LAST_TIME + TIMER_DELAY;
   readings["temperature"] = random(16,40);
   readings["humidity"] = random(60,95);
   readings["pressure"] = random(100,760);
@@ -74,10 +83,13 @@ void notifyClients(String sensorReadings) {
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {        
-    if (strcmp((char*)data, "start") == 0) {
-      String sensorReadings = getSensorReadings();
-      //Serial.print(sensorReadings);
+    if (strcmp((char*)data, "start") == 0) {            
       start = true;
+      startTime = millis();
+    }
+    if(start){
+      String sensorReadings = getSensorReadings();
+      Serial.print(sensorReadings);
       notifyClients(sensorReadings);
     }
   }
@@ -105,17 +117,16 @@ void initWebSocket() {
   server.addHandler(&ws);
 }
 
-TaskHandle_t readSensorTask;
-TaskHandle_t notifyTask;
-
-std::queue<String> q;
-String sensorReadings;
 
 void readSensorReadingFunc(void *parameter){
   for(;;){
-    if ((millis() - lastTime) > timerDelay) {
-      sensorReadings = getSensorReadings();
-      lastTime = millis();
+    if(millis() - startTime > TIMEOUT_TIME){
+      start = false;
+      notifyClients("0");
+    }
+    if (start && (millis() - LAST_TIME) > TIMER_DELAY) {
+      LAST_TIME = millis();
+      sensorReadings = getSensorReadings();      
     }
     ws.cleanupClients();
   }
