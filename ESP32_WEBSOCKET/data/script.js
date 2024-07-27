@@ -26,7 +26,7 @@ function initButton() {
 
 function start(){
     // const timeoutField = document.getElementById('timeout');
-    websocket.send('start');
+    websocket.send('1');
 }
 
 // When websocket is established, call the getReadings() function
@@ -126,12 +126,14 @@ function onMessage(event) {
 
     if(event.data != undefined && event.data === "1"){
         console.log("Botão acionado com sucesso!");
-        button.disabled = true;    
+        getReadings();
+        button.disabled = true;
     }else if(event.data != undefined && event.data === "0"){
         console.log("Teste finalizado!");
         button.disabled = false;
     }else if(event.data != undefined && event.data != "1" && event.data != "0"){
         plotTemperature(jsonObj);
+        button.disabled = true;
     }
 }
 

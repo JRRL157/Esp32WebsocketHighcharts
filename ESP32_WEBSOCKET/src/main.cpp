@@ -83,9 +83,13 @@ void notifyClients(String sensorReadings) {
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {        
-    if (strcmp((char*)data, "start") == 0) {            
-      start = true;
+    if (strcmp((char*)data, "1") == 0) {            
+      start = true;      
       startTime = millis();
+      Serial.println("Teste Iniciado com sucesso!");
+      Serial.print(start);
+      Serial.println(startTime);
+      Serial.println("=============================");      
     }
     if(start){
       String sensorReadings = getSensorReadings();
@@ -120,7 +124,7 @@ void initWebSocket() {
 
 void readSensorReadingFunc(void *parameter){
   for(;;){
-    if(millis() - startTime > TIMEOUT_TIME){
+    if(start && (millis() - startTime > TIMEOUT_TIME)){
       start = false;
       notifyClients("0");
     }
