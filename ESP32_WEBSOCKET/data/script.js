@@ -114,8 +114,7 @@ function onMessage(event) {
     var strArr = event.data.split(",");
     var time = parseInt(strArr[0],16);
     var force = parseInt(strArr[1],16);
-
-    console.log(time," ",force);
+    
     if(!isNaN(time) && !isNaN(force)){
       console.log("ENTROU AQUI!");
       var jsonObj = { time: time, force: force };
