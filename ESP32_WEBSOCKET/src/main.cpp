@@ -37,8 +37,7 @@ unsigned long startTime;
 TaskHandle_t readSensorTask;
 TaskHandle_t notifyTask;
 
-std::queue<String> q;
-String sensorReadings;
+char message[10];
 
 // Experiment state
 bool start = false;
@@ -54,13 +53,11 @@ void initLittleFS() {
 
 
 // Get Sensor Readings and return JSON object
-String getSensorReadings(){
-  readings["epoch"] = LAST_TIME + TIMER_DELAY;
-  readings["temperature"] = random(16,40);
-  readings["humidity"] = random(60,95);
-  readings["pressure"] = random(100,760);
-  String jsonString = JSON.stringify(readings);
-  return jsonString;
+void getSensorReadings(){
+  unsigned long epoch = LAST_TIME + TIMER_DELAY;
+  unsigned long force = random(100,760);
+
+  snprintf(message,sizeof(message),"%X,%X",epoch,force);
 }
 
 // Initialize WiFi
@@ -76,8 +73,8 @@ void initWiFi() {
   }
 }
 
-void notifyClients(String sensorReadings) {
-  ws.textAll(sensorReadings);
+void notifyClients() {
+  ws.textAll(message,sizeof(message));
 }
 
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
@@ -92,9 +89,10 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
       Serial.println("=============================");      
     }
     if(start){
-      String sensorReadings = getSensorReadings();
-      Serial.print(sensorReadings);
-      notifyClients(sensorReadings);
+      LAST_TIME = millis();
+      getSensorReadings();
+      Serial.print(message);
+      notifyClients();
     }
   }
 }
@@ -126,11 +124,13 @@ void readSensorReadingFunc(void *parameter){
   for(;;){
     if(start && (millis() - startTime > TIMEOUT_TIME)){
       start = false;
-      notifyClients("0");
+      message[0] = '0';
+      message[1] = '\0';
+      notifyClients();
     }
     if (start && (millis() - LAST_TIME) > TIMER_DELAY) {
       LAST_TIME = millis();
-      sensorReadings = getSensorReadings();      
+      getSensorReadings();
     }
     ws.cleanupClients();
   }
@@ -138,7 +138,7 @@ void readSensorReadingFunc(void *parameter){
 
 void notifyClientFunc(void *param){
   for(;;){        
-    notifyClients(sensorReadings);
+    notifyClients();
     delay(300); //ERROR: Too many messages queued when delay = 100ms
   }
 }
