@@ -112,11 +112,15 @@ function onMessage(event) {
     button.disabled = false;
   } else if (event.data != undefined && event.data != "1" && event.data != "0") {
     var strArr = event.data.split(",");
-    var time = strArr[0];
-    var force = strArr[1];
-    var jsonObj = { time: time, force: force };
-    button.disabled = true;
-    plotGraph(jsonObj);
+    var time = parseInt(strArr[0],16);
+    var force = parseInt(strArr[1],16);
+
+    console.log(time," ",force);
+    if(!isNaN(time) && !isNaN(force)){
+      console.log("ENTROU AQUI!");
+      var jsonObj = { time: time, force: force };
+      button.disabled = true;
+      plotGraph(jsonObj);
+    }
   }
 }
-
