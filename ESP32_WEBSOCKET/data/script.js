@@ -1,17 +1,21 @@
 var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
 var STOP_STR = "000000000\0";
-var START_STR = "1";
+var start_message = "1";
+
+var sample_time_obj = document.getElementById("samp_time");
+var timeout_time_obj = document.getElementById("timeout_time");
+var start_button_obj = document.getElementById("button");
 
 // Init web socket when the page loads
 window.addEventListener('load', onload);
 
 function onload(event) {
   initWebSocket();
-  initButton();
+  initEventListeners();
 }
 
-function getReadings() {
+function getReadings(event) {
   websocket.send("getReadings");
 }
 
@@ -23,17 +27,29 @@ function initWebSocket() {
   websocket.onmessage = onMessage;
 }
 
-function initButton() {
-  document.getElementById('button').addEventListener('click', start);
+function initEventListeners() {
+  start_button_obj.addEventListener('click', start);
+  sample_time_obj.addEventListener('input',samp_time_func);
+  timeout_time_obj.addEventListener('input',timeout_time_func);
 }
 
-function start() {
-  // const timeoutField = document.getElementById('timeout');
-  websocket.send('1');
+function start() {    
+  start_message = "1,"+sample_time_obj.value+","+timeout_time_obj.value;
+  websocket.send(start_message);
+}
+
+function samp_time_func(){
+  console.log("Samp time changed!");
+  console.log(sample_time_obj.value);
+}
+
+function timeout_time_func(){
+  console.log("Timeout time changed!");
+  console.log(timeout_time_obj.value);
 }
 
 // When websocket is established, call the getReadings() function
-function onOpen(event) {
+function onOpen(event) {    
   console.log('Connection opened');
   //getReadings();
 }
@@ -103,24 +119,23 @@ function plotGraph(jsonValue) {
 
 // Function that receives the message from the ESP32 with the readings
 function onMessage(event) {
-
-  const button = document.getElementById("button");
-
+  //console.log("sample_time = ",sample_time_obj.value," timeout_time = ",timeout_time_obj.value);
+  
   console.log("[Data] = ",event.data," [Length] = ", Object.keys(event.data).length);
   
   console.log("[1] Finalizou? = ",(event.data === STOP_STR));
   console.log("[2] Finalizou? = ",(event.data == STOP_STR));
 
-  if (event.data != undefined && event.data == START_STR) {
+  if (event.data != undefined && event.data == start_message) {
     console.log("Botão acionado com sucesso!");
     chartT.series[0] = [];
     chartT.series[1] = [];
     getReadings();
-    button.disabled = true;
+    start_button_obj.disabled = true;
   } else if (event.data != undefined && event.data == STOP_STR) {
     console.log("Teste finalizado!");
-    button.disabled = false;
-  } else if (event.data != undefined && event.data != START_STR && event.data != STOP_STR) {
+    start_button_obj.disabled = false;
+  } else if (event.data != undefined && event.data != start_message && event.data != STOP_STR) {
     var strArr = event.data.split(",");
     var time = parseInt(strArr[0],16);
     var force = parseInt(strArr[1],16);
@@ -128,7 +143,7 @@ function onMessage(event) {
     if(!isNaN(time) && !isNaN(force)){
       console.log("ENTROU AQUI!");
       var jsonObj = { time: time, force: force };
-      button.disabled = true;
+      start_button_obj.disabled = true;
       plotGraph(jsonObj);
     }
   }

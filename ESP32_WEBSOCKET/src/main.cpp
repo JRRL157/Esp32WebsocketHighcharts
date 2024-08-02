@@ -24,13 +24,11 @@ AsyncWebServer server(80);
 // Create a WebSocket object
 AsyncWebSocket ws("/ws");
 
-// Json Variable to Hold Sensor Readings
-JSONVar readings;
-
 // Timer variables
-unsigned long LAST_TIME = 0;
-unsigned long TIMER_DELAY = 10;
-unsigned long TIMEOUT_TIME = 30000;
+uint32_t LAST_TIME = 0;
+uint32_t TIMER_DELAY = 10;
+uint32_t WS_TIME_DELAY = 100;
+uint32_t TIMEOUT_TIME = 30000;
 
 unsigned long startTime;
 
@@ -41,7 +39,6 @@ char message[10];
 
 // Experiment state
 bool start = false;
-
 
 // Initialize LittleFS
 void initLittleFS() {
@@ -80,13 +77,13 @@ void notifyClients() {
 void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   AwsFrameInfo *info = (AwsFrameInfo*)arg;
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {        
-    if (strcmp((char*)data, "1") == 0) {            
+    char *cData = (char*)data;
+    if (cData[0] == '1') {            
       start = true;      
       startTime = millis();
-      Serial.println("Teste Iniciado com sucesso!");
-      Serial.print(start);
-      Serial.println(startTime);
+      Serial.println("Teste Iniciado com sucesso!");      
       Serial.println("=============================");      
+      Serial.println((char*)data);
     }
     if(start){
       LAST_TIME = millis();
@@ -139,9 +136,10 @@ void readSensorReadingFunc(void *parameter){
 }
 
 void notifyClientFunc(void *param){
-  for(;;){        
+  for(;;){
     notifyClients();
-    delay(300); //ERROR: Too many messages queued when delay = 100ms
+    uint32_t *delayTime = (uint32_t*)(param);
+    delay(*delayTime);
   }
 }
 
@@ -165,7 +163,7 @@ void setup() {
           notifyClientFunc,   /* Task function. */
           "notifyClient",     /* name of task. */
           10000,              /* Stack size of task */
-          NULL,               /* parameter of the task */
+          &WS_TIME_DELAY,     /* parameter of the task */
           1,                  /* priority of the task */
           &notifyTask,        /* Task handle to keep track of created task */
           0                   /* Running at first core */

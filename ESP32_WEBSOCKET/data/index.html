@@ -9,7 +9,7 @@
   </head>
   <body>
     <div class="topnav">
-      <h1>ESP WEB SERVER CHARTS</h1>
+      <h1>Asa Branca Aerospace @ 2024</h1>
     </div>
     <div class="content">
       <div class="card-grid">
@@ -17,9 +17,15 @@
           <p class="card-title">Teste estático</p>
           <div id="chart-teste-estatico" class="chart-container"></div>
         </div>
-        <div class="card">
-            <h2>Output - GPIO 2</h2>            
-            <p><button id="button" class="button">Start</button></p>
+        <div class="card">            
+            <p><button id="button" class="button">Start the Damn Thing!</button></p>
+            <h2>Parameters</h2>
+            <form action="/get">
+              <p>Sampling time (ms): <input type="text" id="samp_time" value="100"></p>
+            </form>
+            <form action="/get">
+              <p>Timeout(ms): <input type="text" id="timeout_time" value="30000"></p>
+            </form>
         </div>
       </div>
     </div>
