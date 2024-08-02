@@ -1,5 +1,8 @@
 var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
+var STOP_STR = "000000000\0";
+var START_STR = "1";
+
 // Init web socket when the page loads
 window.addEventListener('load', onload);
 
@@ -100,17 +103,24 @@ function plotGraph(jsonValue) {
 
 // Function that receives the message from the ESP32 with the readings
 function onMessage(event) {
-  console.log(event.data);
+
   const button = document.getElementById("button");
 
-  if (event.data != undefined && event.data === "1") {
+  console.log("[Data] = ",event.data," [Length] = ", Object.keys(event.data).length);
+  
+  console.log("[1] Finalizou? = ",(event.data === STOP_STR));
+  console.log("[2] Finalizou? = ",(event.data == STOP_STR));
+
+  if (event.data != undefined && event.data == START_STR) {
     console.log("Botão acionado com sucesso!");
+    chartT.series[0] = [];
+    chartT.series[1] = [];
     getReadings();
     button.disabled = true;
-  } else if (event.data != undefined && event.data === "0") {
+  } else if (event.data != undefined && event.data == STOP_STR) {
     console.log("Teste finalizado!");
     button.disabled = false;
-  } else if (event.data != undefined && event.data != "1" && event.data != "0") {
+  } else if (event.data != undefined && event.data != START_STR && event.data != STOP_STR) {
     var strArr = event.data.split(",");
     var time = parseInt(strArr[0],16);
     var force = parseInt(strArr[1],16);

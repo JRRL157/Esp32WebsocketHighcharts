@@ -124,9 +124,8 @@ void readSensorReadingFunc(void *parameter){
   for(;;){
     if(start && (millis() - startTime > TIMEOUT_TIME)){
       start = false;
-      memset(message, '\0', sizeof(message));
-      message[0] = '0';
-      message[1] = '\0';
+      memset(message, '0', sizeof(message));
+      message[9] = '\0';
       Serial.println("ACABOU!! ACABOU!! ACABOU!!!");
       Serial.println(message);
       notifyClients();
