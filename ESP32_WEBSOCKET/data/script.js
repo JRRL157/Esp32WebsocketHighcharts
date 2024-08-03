@@ -6,6 +6,9 @@ var start_message = "1";
 var sample_time_obj = document.getElementById("samp_time");
 var timeout_time_obj = document.getElementById("timeout_time");
 var start_button_obj = document.getElementById("button");
+var prop_mass_obj = document.getElementById("prop_mass");
+var scale_obj = document.getElementById("scale");
+var weight_obj = document.getElementById("weight");
 
 // Init web socket when the page loads
 window.addEventListener('load', onload);
@@ -31,10 +34,13 @@ function initEventListeners() {
   start_button_obj.addEventListener('click', start);
   sample_time_obj.addEventListener('input',samp_time_func);
   timeout_time_obj.addEventListener('input',timeout_time_func);
+  prop_mass_obj.addEventListener('input',prop_mass_func);
+  scale_obj.addEventListener('input',scale_func);
+  weight_obj.addEventListener('input',weight_func);
 }
 
 function start() {    
-  start_message = "1,"+sample_time_obj.value+","+timeout_time_obj.value;
+  start_message = "1,"+sample_time_obj.value+","+timeout_time_obj.value+","+scale_obj.value+","+prop_mass_obj.value+","+weight_obj.value;
   websocket.send(start_message);
 }
 
@@ -47,6 +53,20 @@ function timeout_time_func(){
   console.log("Timeout time changed!");
   console.log(timeout_time_obj.value);
 }
+
+function prop_mass_func(){
+  console.log("Timeout time changed!");
+  console.log(prop_mass_obj.value);
+}
+function scale_func(){
+  console.log("Timeout time changed!");
+  console.log(scale_obj.value);
+}
+function weight_func(){
+  console.log("Timeout time changed!");
+  console.log(weight_obj.value);
+}
+
 
 // When websocket is established, call the getReadings() function
 function onOpen(event) {    
@@ -109,11 +129,14 @@ function plotGraph(jsonValue) {
     var y = Number(jsonValue[key]);
     console.log(y);
 
+    chartT.series[i-1].addPoint([t,y],true,false,true);
+    /*
     if (chartT.series[i - 1].data.length > 40) {
       chartT.series[i - 1].addPoint([t, y], true, true, true);
     } else {
       chartT.series[i - 1].addPoint([t, y], true, false, true);
     }
+    */
   }
 }
 
