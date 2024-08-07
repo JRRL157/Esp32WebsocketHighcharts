@@ -1,11 +1,11 @@
 var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
-var FINISHED_CODE = "0000000001";
-var START_CODE = "1000000001";
-var LIMIT_CODE = "2000000001";
-var TIMEOUT_CODE = "3000000001";
-var PROPELLENT_CODE = "4000000001";
-var CALIBRATE_CODE = "5000000001";
+var FINISHED_CODE = "000000001\0";
+var START_CODE = "100000001\0";
+var LIMIT_CODE = "200000001\0";
+var TIMEOUT_CODE = "300000001\0";
+var PROPELLENT_CODE = "400000001\0";
+var CALIBRATE_CODE = "500000001\0";
 
 var start_message = "1";
 

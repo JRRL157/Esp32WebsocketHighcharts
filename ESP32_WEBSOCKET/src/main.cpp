@@ -257,7 +257,8 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
     Serial.println(numParamsFound);	
 	
 	memset(message, '0', sizeof(message));
-    message[9] = '1';
+    message[8] = '1';
+	message[9] = '\0';
             
 	switch((uint8_t)params[0]){
 		case 1:
