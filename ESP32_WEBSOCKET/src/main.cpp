@@ -1,9 +1,3 @@
-/*********
-  Rui Santos & Sara Santos - Random Nerd Tutorials
-  Complete instructions at https://RandomNerdTutorials.com/esp32-websocket-server-sensor/
-  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
-  The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-*********/
 #include <Arduino.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
@@ -17,12 +11,38 @@
 #include <stdlib.h>
 
 #define MAX_PARAMETERS 10
+#define LOAD_CELL_DOUT GPIO_NUM_32
+#define LOAD_CELL_SCK  GPIO_NUM_33
+#define CS GPIO_NUM_5
 
 const IPAddress apIP = IPAddress(192,168,4,1);
 const IPAddress mask = IPAddress(255,255,255,0);
 
 const char* ssid = "ESP32SSID";
 const char* password = "12345678#!";
+
+typedef struct {
+	uint16_t timeout = 10000;
+	float scale = -268.20;
+	float weight = 217.0;
+	uint16_t sample_min_limit = 1000;
+}config_t;
+
+typedef struct {
+	float value;
+	uint16_t time;
+}sample_data_t;
+
+config_t cfg;
+config_t *pCfg = &cfg;
+HX711 loadCell;
+String timestamp = "";
+File cfg_file;
+File log_file;
+TaskHandle_t readingTaskHandle = NULL;
+TaskHandle_t webSocketSendTaskHandle = NULL;
+bool startReading = false;
+bool sdStatus = false;
 
 // Create AsyncWebServer object on port 80
 AsyncWebServer server(80);
@@ -60,14 +80,109 @@ char message[10];
 // Holds Started/To Start state
 bool start = false;
 
-// Initialize LittleFS
+void calibrate(float weight){
+	short n = 5;
+	float cal = 0.0;
+	loadCell.set_scale();
+	loadCell.tare();
+	Serial.println("Ponha um peso conhecido na celula");
+	while(n--){
+		Serial.println(n);
+		vTaskDelay(pdMS_TO_TICKS(1000));
+	}
+	cal = loadCell.get_units(10);
+	cfg.scale = cal / weight;
+	loadCell.set_scale(cfg.scale);
+	Serial.print("Nova escala: ");
+  Serial.println(cfg.scale);
+	Serial.println("Calibrado!");
+}
+
+bool initSDcard(void){
+	if (!SD.begin(CS)) {
+    	Serial.println("Falha na inicializacao.");
+    	return false;
+	}
+	else{
+		Serial.println("Cartao SD inicializado.");
+	}
+	return true;
+}
+
+void checkSDconfig(config_t* pcfg){
+	if(initSDcard()){
+		sdStatus = true;
+		String temp = "";
+		/* checa se existe arquivo de configuração */
+		if(SD.exists("/config.txt")){
+			cfg_file = SD.open("/config.txt");
+			if(cfg_file){
+				/* escreve as configurações padrão */
+				temp = readLine();
+				pcfg->scale = temp.toFloat();
+				temp = readLine();
+				pcfg->timeout = temp.toInt();
+				temp = readLine();
+				pcfg->weight = temp.toFloat();
+        temp = readLine();
+        pcfg->sample_min_limit = temp.toInt();
+				Serial.println("Configuracoes feitas!");
+				cfg_file.close();
+			}
+			else{
+				Serial.println("Erro ao abrir arquivo de configuracao!");
+			}
+		}
+		else{
+			/* se não existir arquivo de cfg, cria um novo */
+			cfg_file = SD.open("/config.txt", FILE_WRITE);
+			if(cfg_file){
+				/* escreve os valores padrão salvos hardcoded nas variaveis globais */
+				cfg_file.println((String)pcfg->scale);
+				cfg_file.println((String)pcfg->timeout);
+				cfg_file.println((String)pcfg->weight);
+        cfg_file.println((String)pcfg->sample_min_limit);
+				Serial.println("Arquivo de configuracao criado com os valores padrão.");
+				cfg_file.close();
+			}
+			else{
+				Serial.println("Erro ao criar arquivo de configuracao!");
+			}
+		}
+	}
+	else{
+		Serial.println("Falha na configuracao.");
+		sdStatus = false;
+		return;
+	}		
+}
+
+String readLine(){
+	char c;
+	String line = "";
+	while(true){
+		c = cfg_file.read();
+    	line = line + c;
+    	if(c == '\n'){
+      		return line;
+    	}
+	}
+}
+
+void initLoadCell(void){
+	loadCell.begin(LOAD_CELL_DOUT, LOAD_CELL_SCK, 128);
+	loadCell.set_scale(cfg.scale);
+	loadCell.tare();
+	Serial.println("Celula de carga iniciada.\n");
+}
+/* Initialize LittleFS */
 void initLittleFS() {
   if (!LittleFS.begin(true)) {
     Serial.println("An error has occurred while mounting LittleFS");
   }
   Serial.println("LittleFS mounted successfully");
 }
-
+/* ============================================================================================== */
 // Get Sensor Readings and return char*
 void getSensorReadings(){
   unsigned long epoch = LAST_TIME + samp_time;
@@ -75,6 +190,7 @@ void getSensorReadings(){
 
   snprintf(message,sizeof(message),"%X,%X",epoch,force);
 }
+/* ============================================================================================== */
 
 // Initialize WiFi
 void initWiFi() {
@@ -85,7 +201,7 @@ void initWiFi() {
   Serial.print("Starting WiFi Access Point..");
   while (!WiFi.softAP(ssid,password)) {
     Serial.print('.');
-    delay(1000);
+    vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
 
@@ -185,9 +301,16 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
   }
 }
 
-void initWebSocket() {
-  ws.onEvent(onEvent);
-  server.addHandler(&ws);
+void initWebSocket(void){
+	ws.onEvent(onEvent);
+	server.addHandler(&ws);
+	server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
+	request->send(LittleFS, "/index.html", "text/html",false);
+	});
+	server.serveStatic("/", LittleFS, "/");
+	/* Inicia servidor */
+	server.begin();
+	Serial.println("Websocket iniciado.");
 }
 
 
@@ -217,11 +340,89 @@ void notifyClientFunc(void *param){
   }
 }
 
+void readingTask(void *pvParameters) {
+	TickType_t time_interval = 0;
+	sample_data_t reading;
+	String filename = "";
+
+  	while (1) {
+    	if (startReading) {
+			filename = "/" + timestamp + ".csv";        /* arquivo: DDMMHHMM.csv */
+			Serial.println("Amostragem...");
+			/* Abre o arquivo no SD */
+			Serial.print("Full filename: ");
+      Serial.println(filename);
+			log_file = SD.open(filename, FILE_WRITE);
+			if (log_file){
+        Serial.print("Arquivo criado com sucesso: ");
+        Serial.println(filename);
+      }
+			else
+				Serial.println("Erro ao criar arquivo.");
+
+			log_file.println("reading,time");
+
+			/* Configura o timeout */
+			TickType_t startTime = xTaskGetTickCount();
+			const TickType_t timeout = pdMS_TO_TICKS(pCfg->timeout);
+		
+			/* Continua a leitura enquanto startReading for true e dentro do timeout */
+			while (startReading && (xTaskGetTickCount() - startTime) < timeout) {
+				reading.value = loadCell.get_units(1);
+
+				if (reading.value >= pCfg->sample_min_limit) {
+					time_interval = xTaskGetTickCount() - startTime;
+					reading.time = (uint16_t)time_interval;
+					Serial.print("Time: ");
+          Serial.print(reading.time);
+          Serial.print("Reading: ");
+          Serial.println(reading.value);
+					/* salva a leitura no cartao sd */
+					if (log_file) {
+						log_file.print(reading.value);
+						log_file.print(",");
+						log_file.println(reading.time);
+					}
+					/* Envia para a fila */
+					vTaskDelay(pdMS_TO_TICKS(13U));
+				}
+				else{
+					/* Aguarda 13ms */
+					vTaskDelay(pdMS_TO_TICKS(13U));
+				}
+			}
+			/* Fecha o arquivo quando startReading for false ou timeout */
+			log_file.close();
+			startReading = false; /* Reseta a variável startReading após o timeout */
+			Serial.println("Amostragem finalizada.");
+		}
+		else {
+			/* Aguarda até que startReading seja true */
+			vTaskDelay(pdMS_TO_TICKS(100U));
+		}
+	}
+}
+
+void webSocketSendTask(void *pvParameters) {
+	sample_data_t sample;
+	String message = "";
+  	while (1) {
+    	/* Verifica se há dados na fila */
+    	vTaskDelay(pdMS_TO_TICKS(100U));  /* envia msgs para o websocket a cada 100ms */
+  	}
+}
+
 void setup() {
+  gpio_set_direction(CS, GPIO_MODE_OUTPUT);
+	gpio_set_level(CS, 0);
   Serial.begin(115200);
-  initWiFi();
   initLittleFS();
+	checkSDconfig(pCfg);
+  initWiFi();
   initWebSocket();
+  initLoadCell();
+	xTaskCreatePinnedToCore(readingTask, "Reading Task", 8192, NULL, 2, NULL, 0);
+  xTaskCreatePinnedToCore(webSocketSendTask, "WebSocket Send Task", 8192, NULL, 1, NULL, 0);
 
   xTaskCreatePinnedToCore(
           readSensorReadingFunc,   /* Task function. */
@@ -242,17 +443,7 @@ void setup() {
           &notifyTask,        /* Task handle to keep track of created task */
           0                   /* Running at first core */
   );
-
-  // Web Server Root URL
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(LittleFS, "/index.html", "text/html");
-  });
-
-  server.serveStatic("/",LittleFS,"/");
-
-  // Start server
-  server.begin();
 }
-
 void loop() {
+
 }
