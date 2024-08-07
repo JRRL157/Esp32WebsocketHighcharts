@@ -184,10 +184,8 @@ function onMessage(event) {
   console.log("[2] Finalizou? = ",(event.data == FINISHED_CODE));
 
   if (event.data != undefined && event.data == START_CODE) {
-    console.log("Botão acionado com sucesso!");
-    chartT.series[0] = [];
-    chartT.series[1] = [];
-    getReadings();
+    console.log("Botão acionado com sucesso!");    
+    //getReadings();
     start_button_obj.disabled = true;
   } else if (event.data != undefined && event.data == FINISHED_CODE) {
     console.log("Teste finalizado!");

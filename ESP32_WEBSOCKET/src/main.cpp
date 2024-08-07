@@ -261,12 +261,14 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
 	message[9] = '\0';
             
 	switch((uint8_t)params[0]){
-		case 1:
-			start = true;
+		case 1:			
 			startTime = (unsigned long)params[1];
+			LAST_TIME = startTime;
       		Serial.println("Teste Iniciado com sucesso!");
       		Serial.println("=============================");
 			message[0] = '1';
+			
+			start = true;
 			break;
 		case 2:
 		    pCfg->sample_min_limit = (uint16_t)params[1];
@@ -322,18 +324,23 @@ void initWebSocket(void){
 
 void readSensorReadingFunc(void *parameter){
   for(;;){
-    if(start && (millis() - startTime > timeout_time)){
+    unsigned long epoch = millis() + startTime;
+
+	if (start && (epoch - LAST_TIME) > samp_time) {
+      getSensorReadings();
+	  LAST_TIME = epoch;
+    }
+
+	if(start && (epoch - startTime > timeout_time)){
       start = false;
       memset(message, '0', sizeof(message));
+	  message[8] = '1';
       message[9] = '\0';
       Serial.println("ACABOU!! ACABOU!! ACABOU!!!");
       Serial.println(message);
       notifyClients();
     }
-    if (start && (millis() - LAST_TIME) > samp_time) {
-      LAST_TIME = millis();
-      getSensorReadings();
-    }
+
     ws.cleanupClients();
   }
 }
