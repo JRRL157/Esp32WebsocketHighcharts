@@ -109,6 +109,19 @@ bool initSDcard(void){
 	return true;
 }
 
+
+String readLine(){
+	char c;
+	String line = "";
+	while(true){
+		c = cfg_file.read();
+    	line = line + c;
+    	if(c == '\n'){
+      		return line;
+    	}
+	}
+}
+
 void checkSDconfig(config_t* pcfg){
 	if(initSDcard()){
 		sdStatus = true;
@@ -155,18 +168,6 @@ void checkSDconfig(config_t* pcfg){
 		sdStatus = false;
 		return;
 	}		
-}
-
-String readLine(){
-	char c;
-	String line = "";
-	while(true){
-		c = cfg_file.read();
-    	line = line + c;
-    	if(c == '\n'){
-      		return line;
-    	}
-	}
 }
 
 void initLoadCell(void){
