@@ -3,12 +3,19 @@ var websocket;
 var STOP_STR = "000000000\0";
 var start_message = "1";
 
-var sample_time_obj = document.getElementById("samp_time");
-var timeout_time_obj = document.getElementById("timeout_time");
-var start_button_obj = document.getElementById("button");
-var prop_mass_obj = document.getElementById("prop_mass");
-var scale_obj = document.getElementById("scale");
-var weight_obj = document.getElementById("weight");
+var start_button_obj = document.getElementById("start-button");
+var prop_mass;
+
+/* 
+  ===== key ====== | ======= value =======
+  [1, timestamp] -> Start sampling with timestamp
+  [2, 1] -> sd status get function (from ESP32)
+  [3, value] -> sample limit cfg
+  [4, value] -> timeout cfg
+  [5, value] -> scale cfg
+  [6, value] -> weight cfg
+  [7, 1] -> calibrate function start
+*/
 
 // Init web socket when the page loads
 window.addEventListener('load', onload);
@@ -16,10 +23,6 @@ window.addEventListener('load', onload);
 function onload(event) {
   initWebSocket();
   initEventListeners();
-}
-
-function getReadings(event) {
-  websocket.send("getReadings");
 }
 
 function initWebSocket() {
@@ -31,12 +34,17 @@ function initWebSocket() {
 }
 
 function initEventListeners() {
-  start_button_obj.addEventListener('click', start);
-  sample_time_obj.addEventListener('input',samp_time_func);
-  timeout_time_obj.addEventListener('input',timeout_time_func);
-  prop_mass_obj.addEventListener('input',prop_mass_func);
-  scale_obj.addEventListener('input',scale_func);
-  weight_obj.addEventListener('input',weight_func);
+  start_button_obj.addEventListener('click', function(event){
+    event.preventDefault();
+    if(confirm("Deseja realmente iniciar?")){
+      let timestamp = getDate() + getTime();
+      let message = [1, parseInt(timestamp, 10)];
+      console.log(message);
+      if(websocket.readyState !== WebSocket.CLOSED){
+        websocket.send(message);
+      }
+    }
+  });
 }
 
 function start() {    
@@ -44,39 +52,57 @@ function start() {
   websocket.send(start_message);
 }
 
-function samp_time_func(){
-  console.log("Samp time changed!");
-  console.log(sample_time_obj.value);
-}
+function sendFormData(formId) {
 
-function timeout_time_func(){
-  console.log("Timeout time changed!");
-  console.log(timeout_time_obj.value);
+  if(formId === "form-samplingLimit"){
+      var formElements = document.forms[formId].elements['limit'].value;
+      console.log("Form sample limit: ", formElements);
+      let message = [3, formElements];
+      if(websocket.readyState !== WebSocket.CLOSED){
+        websocket.send(message);
+      }
+  }
+  else if(formId === "form-timeout"){
+      var formElements = document.forms[formId].elements['timeout'].value;
+      console.log("Form timeout: ", formElements);
+      let message = [4, formElements];
+      if(websocket.readyState !== WebSocket.CLOSED){
+        websocket.send(message);
+      }
+  }
+  else if(formId === "form-scale"){
+      var formElements = document.forms[formId].elements['scale'].value;
+      console.log("Form scale: ", formElements);
+      let message = [5, formElements];
+      if(websocket.readyState !== WebSocket.CLOSED){
+        websocket.send(message);
+      }
+  }
+  else if(formId === "form-propmass"){
+      var formElements = document.forms[formId].elements['propmass'].value;
+      prop_mass = formElements;
+      console.log("Form prop mass: ", formElements);
+  }
+  else if(formId === "form-weight"){
+      var formElements = document.forms[formId].elements['weight'].value;
+      console.log("Form weight: ", formElements);
+      let message = [6, formElements];
+      if(websocket.readyState !== WebSocket.CLOSED){
+        websocket.send(message);
+      }
+  }
 }
-
-function prop_mass_func(){
-  console.log("Timeout time changed!");
-  console.log(prop_mass_obj.value);
-}
-function scale_func(){
-  console.log("Timeout time changed!");
-  console.log(scale_obj.value);
-}
-function weight_func(){
-  console.log("Timeout time changed!");
-  console.log(weight_obj.value);
-}
-
 
 // When websocket is established, call the getReadings() function
 function onOpen(event) {    
   console.log('Connection opened');
+
   //getReadings();
 }
 
 function onClose(event) {
   console.log('Connection closed');
-  setTimeout(initWebSocket, 2000);
+  setTimeout(initWebSocket, 1000);
 }
 
 // Create Temperature Chart
@@ -170,4 +196,22 @@ function onMessage(event) {
       plotGraph(jsonObj);
     }
   }
+}
+
+function getDate(){
+  var date = new Date;
+  const options = {
+  month: 'numeric',
+  day: 'numeric',
+  };
+  return date.toLocaleDateString("pt-Br", options).replace("/", "");
+}
+
+function getTime(){
+  var date = new Date;
+  const options = {
+      hour: "numeric",
+      minute: "numeric"
+      };
+      return date.toLocaleTimeString("pt-Br", options).replace(":", "");
 }

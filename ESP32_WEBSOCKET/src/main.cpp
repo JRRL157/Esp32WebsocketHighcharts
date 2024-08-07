@@ -10,6 +10,8 @@
 #include <ESPAsyncWebServer.h>
 #include "LittleFS.h"
 #include <queue>
+#include <SD.h>
+#include <HX711.h>
 
 #include <string.h>
 #include <stdlib.h>
