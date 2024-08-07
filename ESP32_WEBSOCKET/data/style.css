@@ -9,6 +9,7 @@ html {
   }
   h2 {
     padding: 0px 50px 0px 50px;
+    color: #034078;
   }
   p {
     font-size: 1.4rem;
@@ -71,14 +72,20 @@ html {
   .info-1 {
     display: flex;
     flex-direction: column;
-    padding: 0px 40px;
-    width: 50%;
+    padding: 0px 20px;
+    width: 33%;
   }
   .info-2 {
     display: flex;
     flex-direction: column;
-    padding: 0px 40px;
-    width: 50%;
+    padding: 0px 20px;
+    width: 33%;
+  }
+  .info-3 {
+    display: flex;
+    flex-direction: column;
+    padding: 0px 20px;
+    width: 33%;
   }
   .reading-status {
     margin: 0px;
@@ -90,6 +97,12 @@ html {
     margin: 0px;
   }
   .SD-status-value {
+    margin: 0px;
+  }
+  .calibrate-status {
+    margin: 0px;
+  }
+  .calibrate-status-value {
     margin: 0px;
   }
   .button-1 {

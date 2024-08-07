@@ -9,12 +9,9 @@ var prop_mass;
 /* 
   ===== key ====== | ======= value =======
   [1, timestamp] -> Start sampling with timestamp
-  [2, 1] -> sd status get function (from ESP32)
-  [3, value] -> sample limit cfg
-  [4, value] -> timeout cfg
-  [5, value] -> scale cfg
-  [6, value] -> weight cfg
-  [7, 1] -> calibrate function start
+  [2, value] -> sample limit cfg
+  [3, value] -> timeout cfg
+  [4, value] -> weight (calibrate)
 */
 
 // Init web socket when the page loads
@@ -47,17 +44,12 @@ function initEventListeners() {
   });
 }
 
-function start() {    
-  start_message = "1,"+sample_time_obj.value+","+timeout_time_obj.value+","+scale_obj.value+","+prop_mass_obj.value+","+weight_obj.value;
-  websocket.send(start_message);
-}
-
 function sendFormData(formId) {
 
   if(formId === "form-samplingLimit"){
       var formElements = document.forms[formId].elements['limit'].value;
       console.log("Form sample limit: ", formElements);
-      let message = [3, formElements];
+      let message = [2, formElements];
       if(websocket.readyState !== WebSocket.CLOSED){
         websocket.send(message);
       }
@@ -65,15 +57,7 @@ function sendFormData(formId) {
   else if(formId === "form-timeout"){
       var formElements = document.forms[formId].elements['timeout'].value;
       console.log("Form timeout: ", formElements);
-      let message = [4, formElements];
-      if(websocket.readyState !== WebSocket.CLOSED){
-        websocket.send(message);
-      }
-  }
-  else if(formId === "form-scale"){
-      var formElements = document.forms[formId].elements['scale'].value;
-      console.log("Form scale: ", formElements);
-      let message = [5, formElements];
+      let message = [3, formElements];
       if(websocket.readyState !== WebSocket.CLOSED){
         websocket.send(message);
       }
@@ -86,7 +70,7 @@ function sendFormData(formId) {
   else if(formId === "form-weight"){
       var formElements = document.forms[formId].elements['weight'].value;
       console.log("Form weight: ", formElements);
-      let message = [6, formElements];
+      let message = [4, formElements];
       if(websocket.readyState !== WebSocket.CLOSED){
         websocket.send(message);
       }

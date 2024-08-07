@@ -21,11 +21,15 @@
             <div class="info-row">
               <div class="info-1">
                 <p class="reading-status">Reading status</p>
-                <p class="reading-status-value">Stand-by</p>
+                <p class="reading-status-value" id="read-info">Stand-by</p>
               </div>
               <div class="info-2">
                 <p class="SD-status">SD Card status</p>
-                <p class="SD-status-value">Off</p>
+                <p class="SD-status-value" id="sd-info">Off</p>
+              </div>
+              <div class="info-3">
+                <p class="calibrate-status">Calibrate status</p>
+                <p class="calibrate-status-value" id="cal-info">Off</p>
               </div>          
             </div>  
             <p><button class="button-1" id="start-button" class="button">Start reading!</button></p>
@@ -43,12 +47,6 @@
               </form>
             </div>
             <div class="form-container">
-              <form id="form-scale">
-                <p>Scale: <input name="scale" input type="number" step="0.01" value="-268.20" title="Valor adimensional a ser usado na calibração."></p>
-                <button class="button-1" type="button" onclick="sendFormData('form-scale')">Submit</button>
-              </form>
-            </div>
-            <div class="form-container">
               <form id="form-propmass">
                 <p>Propellent Mass(g): <input name="propmass" input type="number" min="0" value="1000" title="Massa do propelente, em gramas."></p>
                 <button class="button-1" type="button" onclick="sendFormData('form-propmass')">Submit</button>
@@ -57,7 +55,7 @@
             <div class="form-container">
               <form id="form-weight">
                 <p>Weight(g): <input name="weight" input type="number" step="0.1" min="0.0" id="weight" value="217.0" title="Peso de referência a ser usado na calibração."></p>
-                <button class="button-1" type="button" onclick="sendFormData('form-weight')">Submit</button>
+                <button class="button-1" type="button" onclick="sendFormData('form-weight')">Calibrate</button>
               </form>
             </div>
         </div>
