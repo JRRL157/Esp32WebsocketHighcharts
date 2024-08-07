@@ -1,6 +1,12 @@
 var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
-var STOP_STR = "000000000\0";
+var FINISHED_CODE = "0000000001";
+var START_CODE = "1000000001";
+var LIMIT_CODE = "2000000001";
+var TIMEOUT_CODE = "3000000001";
+var PROPELLENT_CODE = "4000000001";
+var CALIBRATE_CODE = "5000000001";
+
 var start_message = "1";
 
 var start_button_obj = document.getElementById("start-button");
@@ -12,6 +18,19 @@ var prop_mass;
   [2, value] -> sample limit cfg
   [3, value] -> timeout cfg
   [4, value] -> weight (calibrate)
+*/
+
+/*
+  Response      Description
+  0000000001 -> Experiment finished SUCCESS
+  1000000001 -> Expriment start SUCCESS
+  2000000001 -> sample_limit SET CORRECTLY
+  3000000001 -> timeout SET CORRECTLY
+  4000000001 -> propellent Mass SET CORRECTLY
+  5000000001 -> Calibrate SET CORRECTLY
+
+  7000000001 -> Calibration SUCCESS
+  8000000001 -> SD Card detection SUCCESS
 */
 
 // Init web socket when the page loads
@@ -34,7 +53,8 @@ function initEventListeners() {
   start_button_obj.addEventListener('click', function(event){
     event.preventDefault();
     if(confirm("Deseja realmente iniciar?")){
-      let timestamp = getDate() + getTime();
+      //let timestamp = getDate() + getTime();
+      let timestamp = Date.now(); //Epoch in miliseconds, this makes things easier to count time in the C/C++ backend
       let message = [1, parseInt(timestamp, 10)];
       console.log(message);
       if(websocket.readyState !== WebSocket.CLOSED){
@@ -160,19 +180,19 @@ function onMessage(event) {
   
   console.log("[Data] = ",event.data," [Length] = ", Object.keys(event.data).length);
   
-  console.log("[1] Finalizou? = ",(event.data === STOP_STR));
-  console.log("[2] Finalizou? = ",(event.data == STOP_STR));
+  console.log("[1] Finalizou? = ",(event.data === FINISHED_CODE));
+  console.log("[2] Finalizou? = ",(event.data == FINISHED_CODE));
 
-  if (event.data != undefined && event.data == start_message) {
+  if (event.data != undefined && event.data == START_CODE) {
     console.log("Botão acionado com sucesso!");
     chartT.series[0] = [];
     chartT.series[1] = [];
     getReadings();
     start_button_obj.disabled = true;
-  } else if (event.data != undefined && event.data == STOP_STR) {
+  } else if (event.data != undefined && event.data == FINISHED_CODE) {
     console.log("Teste finalizado!");
     start_button_obj.disabled = false;
-  } else if (event.data != undefined && event.data != start_message && event.data != STOP_STR) {
+  } else if (event.data != undefined && event.data != START_CODE && event.data != FINISHED_CODE) {
     var strArr = event.data.split(",");
     var time = parseInt(strArr[0],16);
     var force = parseInt(strArr[1],16);
@@ -183,6 +203,8 @@ function onMessage(event) {
       start_button_obj.disabled = true;
       plotGraph(jsonObj);
     }
+
+    //TODO: Criar os outros else if para os demais códigos de retorno
   }
 }
 

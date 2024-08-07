@@ -24,7 +24,7 @@ const char* password = "12345678#!";
 typedef struct {
 	uint16_t timeout = 10000;
 	float scale = -268.20;
-	float weight = 217.0;
+	float weight = 217.0;	
 	uint16_t sample_min_limit = 1000;
 }config_t;
 
@@ -51,7 +51,7 @@ AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 
 //Parameters to be set by Front End
-float params[6];
+float params[2];
 size_t numParamsFound;
 
 // Internal variables gathered from params vector
@@ -249,39 +249,44 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
   if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
     const char *cData = (const char*)data;
     
+    parseParameters(cData, params, &numParamsFound,NULL);
+	
+	Serial.print("Received data = ");
     Serial.println(cData);
-    if (cData[0] == '1') {
-      start = true;
-      parseParameters(cData, params, &numParamsFound,NULL);
+    Serial.print("# parameters found = ");
+    Serial.println(numParamsFound);	
+	
+	memset(message, '0', sizeof(message));
+    message[9] = '1';
+            
+	switch((uint8_t)params[0]){
+		case 1:
+			start = true;
+			startTime = (unsigned long)params[1];
+      		Serial.println("Teste Iniciado com sucesso!");
+      		Serial.println("=============================");
+			message[0] = '1';
+			break;
+		case 2:
+		    pCfg->sample_min_limit = (uint16_t)params[1];
+			message[0] = '2';
+			break;
+		case 3:
+			pCfg->timeout = (uint16_t)params[1];
+			message[0] = '3';
+			break;
+		case 4:
+			pCfg->scale = params[1]; //Is it 'scale' or 'propmass' (????)
+			message[0] = '4';
+			break;
+		case 5:
+			pCfg->weight = params[1];
+			message[0] = '5';
+			break;
+	}
 
-      Serial.print("Received data = ");
-      Serial.println(cData);
-      Serial.print("# parameters found = ");
-      Serial.println(numParamsFound);
-      
-      samp_time = (uint32_t)params[1];
-      timeout_time = (uint32_t)params[2];
-      scale = params[3];
-      prop_mass = params[4];
-      weight = params[5];
-
-      Serial.println(samp_time);
-      Serial.println(timeout_time);
-      Serial.println(scale);
-      Serial.println(prop_mass);
-      Serial.println(weight);
-
-      startTime = millis();
-      Serial.println("Teste Iniciado com sucesso!");
-      Serial.println("=============================");
-      
-    }
-    if(start){
-      LAST_TIME = millis();
-      getSensorReadings();
-      Serial.print(message);
-      notifyClients();
-    }
+	//Send response to Javascript to ensure the operation was done correctly
+	notifyClients();
   }
 }
 
@@ -313,7 +318,6 @@ void initWebSocket(void){
 	server.begin();
 	Serial.println("Websocket iniciado.");
 }
-
 
 void readSensorReadingFunc(void *parameter){
   for(;;){
