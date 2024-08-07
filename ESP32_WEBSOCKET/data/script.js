@@ -66,11 +66,15 @@ function sendFormData(formId) {
       var formElements = document.forms[formId].elements['propmass'].value;
       prop_mass = formElements;
       console.log("Form prop mass: ", formElements);
+      let message = [4, formElements];
+      if(websocket.readyState !== WebSocket.CLOSED){
+        websocket.send(message);
+      }
   }
   else if(formId === "form-weight"){
       var formElements = document.forms[formId].elements['weight'].value;
       console.log("Form weight: ", formElements);
-      let message = [4, formElements];
+      let message = [5, formElements];
       if(websocket.readyState !== WebSocket.CLOSED){
         websocket.send(message);
       }

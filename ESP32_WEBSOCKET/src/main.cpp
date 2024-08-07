@@ -94,7 +94,7 @@ void calibrate(float weight){
 	cfg.scale = cal / weight;
 	loadCell.set_scale(cfg.scale);
 	Serial.print("Nova escala: ");
-  Serial.println(cfg.scale);
+    Serial.println(cfg.scale);
 	Serial.println("Calibrado!");
 }
 
@@ -255,7 +255,7 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
       parseParameters(cData, params, &numParamsFound,NULL);
 
       Serial.print("Received data = ");
-      Serial.println((char*)data);
+      Serial.println(cData);
       Serial.print("# parameters found = ");
       Serial.println(numParamsFound);
       
