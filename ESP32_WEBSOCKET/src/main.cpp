@@ -101,6 +101,11 @@ void calibrate(float weight){
 	Serial.print("Nova escala: ");
     Serial.println(cfg.scale);
 	Serial.println("Calibrado!");
+	
+	memset(message, '0', sizeof(message));
+    message[0] = '7';
+	message[8] = '1';
+	message[9] = '\0';
 }
 
 bool initSDcard(void){
@@ -134,6 +139,12 @@ void checkSDconfig(config_t* pcfg){
 		/* checa se existe arquivo de configuração */
 		if(SD.exists("/config.txt")){
 			cfg_file = SD.open("/config.txt");
+
+			memset(message, '0', sizeof(message));
+    		message[0] = '8';
+			message[8] = '1';
+			message[9] = '\0';
+
 			if(cfg_file){
 				/* escreve as configurações padrão */
 				temp = readLine();
