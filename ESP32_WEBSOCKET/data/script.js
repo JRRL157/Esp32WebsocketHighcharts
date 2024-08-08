@@ -1,15 +1,22 @@
 var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
-var FINISHED_CODE = "000000001\0";
-var START_CODE = "100000001\0";
-var LIMIT_CODE = "200000001\0";
-var TIMEOUT_CODE = "300000001\0";
-var PROPELLENT_CODE = "400000001\0";
-var CALIBRATE_CODE = "500000001\0";
 
-var start_message = "1";
+const FINISHED_CODE = "000000001\0";
+const START_CODE = "100000001\0";
+const LIMIT_CODE = "200000001\0";
+const TIMEOUT_CODE = "300000001\0";
+const PROPELLENT_CODE = "400000001\0";
+const CALIBRATE_CODE = "500000001\0";
+const CALIBRATE_SUCCESS_CODE = "700000001\0"
+const SD_DETECTION_SUCCESS_CODE = "800000001\0"
+const SD_DETECTION_FAIL_CODE = "800000000\0"
 
 var start_button_obj = document.getElementById("start-button");
+var start_calibration_obj = document.getElementById("start-calibration");
+
+var cal_info_obj = document.getElementById("cal-info");
+var sd_info_obj = document.getElementById("sd-info");
+
 var prop_mass;
 
 /* 
@@ -28,7 +35,7 @@ var prop_mass;
   3000000001 -> timeout SET CORRECTLY
   4000000001 -> propellent Mass SET CORRECTLY
   5000000001 -> Calibrate SET CORRECTLY
-
+  
   7000000001 -> Calibration SUCCESS
   8000000001 -> SD Card detection SUCCESS
 */
@@ -55,7 +62,20 @@ function initEventListeners() {
     if(confirm("Deseja realmente iniciar?")){
       //let timestamp = getDate() + getTime();
       let timestamp = Date.now(); //Epoch in miliseconds, this makes things easier to count time in the C/C++ backend
-      let message = [1, 0];
+      let message = [1, 200];
+      console.log(message);
+      if(websocket.readyState !== WebSocket.CLOSED){
+        websocket.send(message);
+      }
+    }
+  });
+
+  start_calibration_obj.addEventListener('click', function(event){
+    event.preventDefault();
+    if(confirm("Iniciar a calibração?")){
+      //let timestamp = getDate() + getTime();
+      let timestamp = Date.now(); //Epoch in miliseconds, this makes things easier to count time in the C/C++ backend
+      let message = [0, 0];
       console.log(message);
       if(websocket.readyState !== WebSocket.CLOSED){
         websocket.send(message);
@@ -190,6 +210,16 @@ function onMessage(event) {
   } else if (event.data != undefined && event.data == FINISHED_CODE) {
     console.log("Teste finalizado!");
     start_button_obj.disabled = false;
+    cal_info_obj.value = "OFF";
+    sd_info_obj.value = "OFF";
+  } else if(event.data != undefined && event.data == CALIBRATE_SUCCESS_CODE) {
+    console.log("CALIBRADO COM SUCESSO!");
+    cal_info_obj.innerText = "ON";
+  } else if (event.data != undefined && event.data == SD_DETECTION_FAIL_CODE) {
+    sd_info_obj.innerText = "OFFFFF";
+    console.log("SD não encontrado!");
+  } else if (event.data != undefined && event.data == SD_DETECTION_SUCCESS_CODE) {
+    sd_info_obj.innerText = "ON";
   } else if (event.data != undefined && event.data != START_CODE && event.data != FINISHED_CODE) {
     var strArr = event.data.split(",");
     var time = parseInt(strArr[0],16);
@@ -200,10 +230,8 @@ function onMessage(event) {
       var jsonObj = { time: time, force: force };
       start_button_obj.disabled = true;
       plotGraph(jsonObj);
-    }
-
-    //TODO: Criar os outros else if para os demais códigos de retorno
-  }
+    }    
+  }  
 }
 
 function getDate(){

@@ -35,6 +35,8 @@ typedef struct {
 	uint16_t time;
 }sample_data_t;
 
+void notifyClients();
+
 config_t cfg;
 config_t *pCfg = &cfg;
 HX711 loadCell;
@@ -91,31 +93,36 @@ void calibrate(float weight){
 	loadCell.set_scale();
 	loadCell.tare();
 	Serial.println("Ponha um peso conhecido na celula");
-	while(n--){
-		Serial.println(n);
-		vTaskDelay(pdMS_TO_TICKS(1000));
-	}
-	cal = loadCell.get_units(10);
-	cfg.scale = cal / weight;
-	loadCell.set_scale(cfg.scale);
-	Serial.print("Nova escala: ");
-    Serial.println(cfg.scale);
-	Serial.println("Calibrado!");
-	
+
 	memset(message, '0', sizeof(message));
     message[0] = '7';
 	message[8] = '1';
 	message[9] = '\0';
+	notifyClients();
+
+	/*
+	while(n--){
+		Serial.println(n);
+		vTaskDelay(pdMS_TO_TICKS(1000));
+	}
+	
+	cal = loadCell.get_units(10);
+	cfg.scale = cal / weight;
+	loadCell.set_scale(cfg.scale);	
+	Serial.print("Nova escala: ");
+    Serial.println(cfg.scale);
+	Serial.println("Calibrado!");	
+	*/
 }
 
 bool initSDcard(void){
 	if (!SD.begin(CS)) {
-    	Serial.println("Falha na inicializacao.");
+    	Serial.println("Falha na inicializacao.");		
     	return false;
 	}
 	else{
-		Serial.println("Cartao SD inicializado.");
-	}
+		Serial.println("Cartao SD inicializado.");		
+	}	
 	return true;
 }
 
@@ -133,17 +140,18 @@ String readLine(){
 }
 
 void checkSDconfig(config_t* pcfg){
+	memset(message, '0', sizeof(message));
+    message[0] = '8';
+	message[9] = '\0';
+	
 	if(initSDcard()){
+		message[8] = '1'; //SUCCESS
+		
 		sdStatus = true;
 		String temp = "";
 		/* checa se existe arquivo de configuração */
 		if(SD.exists("/config.txt")){
 			cfg_file = SD.open("/config.txt");
-
-			memset(message, '0', sizeof(message));
-    		message[0] = '8';
-			message[8] = '1';
-			message[9] = '\0';
 
 			if(cfg_file){
 				/* escreve as configurações padrão */
@@ -180,6 +188,7 @@ void checkSDconfig(config_t* pcfg){
 		}
 	}
 	else{
+		message[8] = '0'; //FAIL
 		Serial.println("Falha na configuracao.");
 		sdStatus = false;
 		return;
@@ -277,10 +286,17 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
 	message[9] = '\0';
             
 	switch((uint8_t)params[0]){
+		case 0:			
+			Serial.println("=============================");
+			Serial.println("Iniciando a calibração!");
+      		Serial.println("=============================");
+			calibrate(cfg.weight);
+			break;
 		case 1:			
 			startTime = millis();
 			LAST_TIME = startTime;
 			epoch =  startTime;
+			Serial.println("=============================");
       		Serial.println("Teste Iniciado com sucesso!");
       		Serial.println("=============================");
 			message[0] = '1';
@@ -374,8 +390,7 @@ void countTimeoutFunc(void *param){
 			message[8] = '1';
 			message[9] = '\0';
 			Serial.println("ACABOU!! ACABOU!! ACABOU!!!");
-			Serial.println(message);
-			//notifyClients();
+			Serial.println(message);			
 		}
 		vTaskDelay(10);
 	}
