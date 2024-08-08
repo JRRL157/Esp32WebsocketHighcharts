@@ -1,14 +1,18 @@
 var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
-var STOP_STR = "000000000\0";
-var start_message = "1";
+var start_button_obj = document.getElementById("start-button");
+var prop_mass;
+const dataArray = [];
+const gravity = 9.806;
+var buffer_receive_ready = false;
 
-var sample_time_obj = document.getElementById("samp_time");
-var timeout_time_obj = document.getElementById("timeout_time");
-var start_button_obj = document.getElementById("button");
-var prop_mass_obj = document.getElementById("prop_mass");
-var scale_obj = document.getElementById("scale");
-var weight_obj = document.getElementById("weight");
+/* 
+  ===== key ====== | ======= value =======
+  [1, timestamp] -> Start sampling with timestamp
+  [2, value] -> sample limit cfg
+  [3, value] -> timeout cfg
+  [4, value] -> weight (calibrate)
+*/
 
 // Init web socket when the page loads
 window.addEventListener('load', onload);
@@ -18,68 +22,99 @@ function onload(event) {
   initEventListeners();
 }
 
-function getReadings(event) {
-  websocket.send("getReadings");
-}
-
 function initWebSocket() {
   console.log('Trying to open a WebSocket connection…');
   websocket = new WebSocket(gateway);
   websocket.onopen = onOpen;
   websocket.onclose = onClose;
   websocket.onmessage = onMessage;
+  websocket.binaryType = 'arraybuffer';
 }
 
 function initEventListeners() {
-  start_button_obj.addEventListener('click', start);
-  sample_time_obj.addEventListener('input',samp_time_func);
-  timeout_time_obj.addEventListener('input',timeout_time_func);
-  prop_mass_obj.addEventListener('input',prop_mass_func);
-  scale_obj.addEventListener('input',scale_func);
-  weight_obj.addEventListener('input',weight_func);
+  start_button_obj.addEventListener("click", function(event){
+    
+    event.preventDefault();
+    if (confirm("Deseja realmente iniciar?")) {
+      console.log("Leitura confirmada.");
+      let timestamp = getDate() + getTime();
+      console.log(timestamp);
+      const buffer = new ArrayBuffer(9); // 1byte do código + 8bytes do timestamp
+      const dataView = new DataView(buffer);
+      dataView.setUint8(0, 1); // Cabeçalho indicando inicio da leitura (1)
+      for (let i = 0; i < 8; i++) {
+        dataView.setUint8(1 + i, timestamp.charCodeAt(i) || 0); // Codificação da string
+      }
+      console.log(buffer);
+      websocket.send(buffer);
+      console.log("Msg enviada.");
+    }
+  });
 }
 
-function start() {    
-  start_message = "1,"+sample_time_obj.value+","+timeout_time_obj.value+","+scale_obj.value+","+prop_mass_obj.value+","+weight_obj.value;
-  websocket.send(start_message);
+function getSdStatus() {
+  const buffer = new ArrayBuffer(1);       // 1byte do código
+  const dataView = new DataView(buffer);
+  dataView.setUint8(0, 5);                 // Cabeçalho 
+  websocket.send(buffer);                  // Pede informação do cartão SD
+  console.log("Msg de requisicao sd status enviada");
 }
 
-function samp_time_func(){
-  console.log("Samp time changed!");
-  console.log(sample_time_obj.value);
-}
+function sendFormData(formId) {
 
-function timeout_time_func(){
-  console.log("Timeout time changed!");
-  console.log(timeout_time_obj.value);
-}
+  if (formId == "form-samplingLimit") {
 
-function prop_mass_func(){
-  console.log("Timeout time changed!");
-  console.log(prop_mass_obj.value);
-}
-function scale_func(){
-  console.log("Timeout time changed!");
-  console.log(scale_obj.value);
-}
-function weight_func(){
-  console.log("Timeout time changed!");
-  console.log(weight_obj.value);
-}
+      var formElements = document.forms[formId].elements['limit'].value;
+      console.log("Form sample limit: ", formElements);
+      const buffer2 = new ArrayBuffer(3);   // 3bytes -> 1byte (char) + 2bytes (uint16_t)
+      const dataView2 = new DataView(buffer2);
+      dataView2.setUint8(0, 2);     // primeira posição da mensagem, com código 2
+      dataView2.setUint16(1, formElements, true);  // envia, na segunda posição do buffer, o valor do limite mínimo (máx 65535)
 
+      websocket.send(buffer2);
+
+  }
+  else if(formId == "form-timeout"){
+
+      var formElements = document.forms[formId].elements['timeout'].value;
+      console.log("Form timeout: ", formElements);
+      const buffer3 = new ArrayBuffer(3);  // 3bytes -> 1byte (char) + 2bytes (uint16_t)
+      const dataView3 = new DataView(buffer3);
+      dataView3.setUint8(0, 3);     // primeira posição da mensagem, com código 3 (definir novo timeout)
+      dataView3.setUint16(1, formElements, true);  // envia, na segunda posição do buffer, o valor do timeout (máx 65535)
+      
+      websocket.send(buffer3);
+  }
+  else if(formId == "form-propmass"){
+
+      var formElements = document.forms[formId].elements['propmass'].value;
+      prop_mass = formElements;
+      console.log("Form prop mass: ", formElements);
+  }
+  else if(formId == "form-weight"){
+
+      var formElements = document.forms[formId].elements['weight'].value;
+      console.log("Form weight: ", formElements);
+      const buffer4 = new ArrayBuffer(5);  // 5 bytes -> 1 byte + 4 bytes (float32)
+      const dataView4 = new DataView(buffer4);
+      dataView4.setUint8(0, 4);     // primeira posição da mensagem, com código 4 (iniciar calibragem)
+      dataView4.setFloat32(1, formElements, true);  // envia, na segunda posição do buffer, o valor do peso de referencia (máx 65535)
+
+      websocket.send(buffer4);
+  }
+}
 
 // When websocket is established, call the getReadings() function
 function onOpen(event) {    
   console.log('Connection opened');
-  //getReadings();
 }
 
 function onClose(event) {
   console.log('Connection closed');
-  setTimeout(initWebSocket, 2000);
+  setTimeout(initWebSocket, 1000);
 }
 
-// Create Temperature Chart
+// Create Chart
 var chartT = new Highcharts.Chart({
   chart: {
     renderTo: 'chart-teste-estatico'
@@ -105,7 +140,7 @@ var chartT = new Highcharts.Chart({
   },
   yAxis: {
     title: {
-      text: 'Y Axis'
+      text: 'Force (N)'
     }
   },
   credits: {
@@ -113,61 +148,91 @@ var chartT = new Highcharts.Chart({
   }
 });
 
-//Plot temperature in the temperature chart
-function plotGraph(jsonValue) {
+function plotGraph(dataArray) {
 
-  var keys = Object.keys(jsonValue);
-  console.log(keys);
-  console.log(keys.length);
-
-  for (var i = 1; i < keys.length; i++) {
-    var timeKey = keys[0];
-    var t = Number(jsonValue[timeKey]);
-    console.log(t);
-
-    const key = keys[i];
-    var y = Number(jsonValue[key]);
-    console.log(y);
-
-    chartT.series[i-1].addPoint([t,y],true,false,true);
-    /*
-    if (chartT.series[i - 1].data.length > 40) {
-      chartT.series[i - 1].addPoint([t, y], true, true, true);
-    } else {
-      chartT.series[i - 1].addPoint([t, y], true, false, true);
-    }
-    */
-  }
+  const data = dataArray.map(item => [item.time, item.value]);
+  chartT.series[0].setData(data);
+  
 }
 
-// Function that receives the message from the ESP32 with the readings
 function onMessage(event) {
-  //console.log("sample_time = ",sample_time_obj.value," timeout_time = ",timeout_time_obj.value);
-  
-  console.log("[Data] = ",event.data," [Length] = ", Object.keys(event.data).length);
-  
-  console.log("[1] Finalizou? = ",(event.data === STOP_STR));
-  console.log("[2] Finalizou? = ",(event.data == STOP_STR));
+  const data = new DataView(event.data);
+  const messageType = data.getUint8(0); // O primeiro byte é o tipo de mensagem (offset 0)
 
-  if (event.data != undefined && event.data == start_message) {
-    console.log("Botão acionado com sucesso!");
-    chartT.series[0] = [];
-    chartT.series[1] = [];
-    getReadings();
-    start_button_obj.disabled = true;
-  } else if (event.data != undefined && event.data == STOP_STR) {
-    console.log("Teste finalizado!");
-    start_button_obj.disabled = false;
-  } else if (event.data != undefined && event.data != start_message && event.data != STOP_STR) {
-    var strArr = event.data.split(",");
-    var time = parseInt(strArr[0],16);
-    var force = parseInt(strArr[1],16);
-    
-    if(!isNaN(time) && !isNaN(force)){
-      console.log("ENTROU AQUI!");
-      var jsonObj = { time: time, force: force };
-      start_button_obj.disabled = true;
-      plotGraph(jsonObj);
+  // verifica se houve uma mensagem informando que a próxima mensagem será o array de dados
+  if (buffer_receive_ready == true) {
+    // entra aqui se o esp32 for enviar o array com os dados do sensor
+    console.log("Inicio de leitura do buffer");
+    handleSensorData(data);
+  }
+  else {
+    switch (messageType) {
+      case 1: // o esp enviou msg informando que a próxima será o array
+          buffer_receive_ready = true;
+          console.log("Msg de inicio de leitura recebida");
+          break;
+      case 5: // SD STATUS
+          handleSdMessage(data);
+          console.log("Msg de sd status recebida");
+          break;
+      case 4:
+          handleCalibrateMessage(data);
+          console.log("Msg de calibracao recebida");
+          break;
+      default:
+          console.error('Unknown message type:', messageType);
     }
   }
 }
+
+function handleSensorData(dataView) {
+  for (let i = 0; i < dataView.byteLength; i += 6) { // float(4 bytes) + uint16_t(2 bytes) = 6 bytes
+      const value = (dataView.getFloat32(i, true) * gravity).toFixed(2); // little-endian
+      const time = dataView.getUint16(i + 4, true); // little-endian
+      // salva os dados nos arrays
+      dataArray.push({ time, value });
+      console.log('Reading Data - Value:', value, 'Time:', time);
+  }
+  plotGraph(dataArray);
+  buffer_receive_ready = false;    // reseta a flag
+}
+
+function handleSdMessage(dataView) {
+  // pula o primeiro byte, offset = 1
+  if (dataView.getUint8(1) == 1) {
+    document.getElementById("sd-info").innerHTML = "SD Card OK!";
+  }
+  else {
+    document.getElementById("sd-info").innerHTML = "SD Card missing!";
+  }
+}
+
+function handleCalibrateMessage(dataView) {
+  if (dataView.getUint8(1) == 1) {
+    document.getElementById("cal-info").innerHTML = "Running";
+  }
+  else {
+    document.getElementById("cal-info").innerHTML = "Stopped";
+  }
+}
+
+function getDate(){
+  var date = new Date;
+  const options = {
+  month: 'numeric',
+  day: 'numeric',
+  };
+  return date.toLocaleDateString("pt-Br", options).replace("/", "");
+}
+
+function getTime(){
+  var date = new Date;
+  const options = {
+      hour: "numeric",
+      minute: "numeric"
+      };
+      return date.toLocaleTimeString("pt-Br", options).replace(":", "");
+}
+
+setInterval(getSdStatus, 5000);   // pede informação do cartão SD a cada 5 segundos
+getSdStatus();
