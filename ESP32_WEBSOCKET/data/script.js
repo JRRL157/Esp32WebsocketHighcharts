@@ -210,16 +210,28 @@ function onMessage(event) {
   } else if (event.data != undefined && event.data == FINISHED_CODE) {
     console.log("Teste finalizado!");
     start_button_obj.disabled = false;
+    
     cal_info_obj.value = "OFF";
+    cal_info_obj.style.color = "red";
+    cal_info_obj.style.fontWeight = "bold";
+    
     sd_info_obj.value = "OFF";
+    sd_info_obj.style.color = "red";
+    sd_info_obj.style.fontWeight = "bold";
   } else if(event.data != undefined && event.data == CALIBRATE_SUCCESS_CODE) {
     console.log("CALIBRADO COM SUCESSO!");
     cal_info_obj.innerText = "ON";
+    cal_info_obj.style.color = "green";
+    cal_info_obj.style.fontWeight = "bold";
   } else if (event.data != undefined && event.data == SD_DETECTION_FAIL_CODE) {
-    sd_info_obj.innerText = "OFFFFF";
+    sd_info_obj.innerText = "OFF";
+    sd_info_obj.style.color = "red";
+    sd_info_obj.style.fontWeight = "bold";
     console.log("SD não encontrado!");
   } else if (event.data != undefined && event.data == SD_DETECTION_SUCCESS_CODE) {
     sd_info_obj.innerText = "ON";
+    sd_info_obj.style.color = "green";
+    sd_info_obj.style.fontWeight = "bold";
   } else if (event.data != undefined && event.data != START_CODE && event.data != FINISHED_CODE) {
     var strArr = event.data.split(",");
     var time = parseInt(strArr[0],16);

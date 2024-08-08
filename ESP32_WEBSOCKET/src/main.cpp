@@ -390,7 +390,7 @@ void countTimeoutFunc(void *param){
 			message[8] = '1';
 			message[9] = '\0';
 			Serial.println("ACABOU!! ACABOU!! ACABOU!!!");
-			Serial.println(message);			
+			Serial.println(message);
 		}
 		vTaskDelay(10);
 	}
