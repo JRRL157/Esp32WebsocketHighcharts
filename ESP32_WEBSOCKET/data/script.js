@@ -55,7 +55,7 @@ function initEventListeners() {
     if(confirm("Deseja realmente iniciar?")){
       //let timestamp = getDate() + getTime();
       let timestamp = Date.now(); //Epoch in miliseconds, this makes things easier to count time in the C/C++ backend
-      let message = [1, parseInt(timestamp, 10)];
+      let message = [1, 0];
       console.log(message);
       if(websocket.readyState !== WebSocket.CLOSED){
         websocket.send(message);

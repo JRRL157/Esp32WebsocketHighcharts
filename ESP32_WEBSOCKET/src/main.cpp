@@ -11,6 +11,8 @@
 #include <stdlib.h>
 
 #define MAX_PARAMETERS 10
+#define MAXIMUM_TIMEOUT 60000
+
 #define LOAD_CELL_DOUT GPIO_NUM_32
 #define LOAD_CELL_SCK  GPIO_NUM_33
 #define CS GPIO_NUM_5
@@ -68,12 +70,15 @@ float weight = 217.0;
 
 */
 uint32_t LAST_TIME = 0;
+uint32_t epoch = 0;
+uint32_t diff = 0;
 uint32_t WS_TIME_DELAY = 100;
 
-unsigned long startTime;
+uint32_t startTime = 4294967295;
 
 TaskHandle_t readSensorTask;
 TaskHandle_t notifyTask;
+TaskHandle_t countTimeoutTask;
 
 char message[10];
 
@@ -262,8 +267,9 @@ void handleWebSocketMessage(void *arg, uint8_t *data, size_t len) {
             
 	switch((uint8_t)params[0]){
 		case 1:			
-			startTime = (unsigned long)params[1];
+			startTime = millis();
 			LAST_TIME = startTime;
+			epoch =  startTime;
       		Serial.println("Teste Iniciado com sucesso!");
       		Serial.println("=============================");
 			message[0] = '1';
@@ -322,25 +328,17 @@ void initWebSocket(void){
 	Serial.println("Websocket iniciado.");
 }
 
-void readSensorReadingFunc(void *parameter){
-  for(;;){
-    unsigned long epoch = millis() + startTime;
+unsigned long getEpochTime() {
+  return (unsigned long)time(NULL);
+}
 
-	if (start && (epoch - LAST_TIME) > samp_time) {
+void readSensorReadingFunc(void *parameter){
+  for(;;){    
+	if (start && (epoch - LAST_TIME) >= samp_time) {
       getSensorReadings();
 	  LAST_TIME = epoch;
     }
-
-	if(start && (epoch - startTime > timeout_time)){
-      start = false;
-      memset(message, '0', sizeof(message));
-	  message[8] = '1';
-      message[9] = '\0';
-      Serial.println("ACABOU!! ACABOU!! ACABOU!!!");
-      Serial.println(message);
-      notifyClients();
-    }
-
+	vTaskDelay(10);
     ws.cleanupClients();
   }
 }
@@ -351,6 +349,25 @@ void notifyClientFunc(void *param){
     uint32_t *delayTime = (uint32_t*)(param);
     delay(*delayTime);
   }
+}
+
+void countTimeoutFunc(void *param){
+	for(;;){
+		epoch = millis() - startTime;
+		diff = epoch - startTime;
+
+		if(start && diff < MAXIMUM_TIMEOUT && (diff > timeout_time)){
+			Serial.println(diff);
+			start = false;
+			memset(message, '0', sizeof(message));
+			message[8] = '1';
+			message[9] = '\0';
+			Serial.println("ACABOU!! ACABOU!! ACABOU!!!");
+			Serial.println(message);
+			//notifyClients();
+		}
+		vTaskDelay(10);
+	}
 }
 
 void readingTask(void *pvParameters) {
@@ -454,6 +471,16 @@ void setup() {
           &WS_TIME_DELAY,     /* parameter of the task */
           1,                  /* priority of the task */
           &notifyTask,        /* Task handle to keep track of created task */
+          0                   /* Running at first core */
+  );
+
+  xTaskCreatePinnedToCore(
+          countTimeoutFunc,   /* Task function. */
+          "countTimeout",     /* name of task. */
+          10000,              /* Stack size of task */
+          NULL,     		  /* parameter of the task */
+          2,                  /* priority of the task */
+          &countTimeoutTask,  /* Task handle to keep track of created task */
           0                   /* Running at first core */
   );
 }
