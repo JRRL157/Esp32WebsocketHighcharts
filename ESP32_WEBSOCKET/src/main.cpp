@@ -332,8 +332,8 @@ unsigned long getEpochTime() {
   return (unsigned long)time(NULL);
 }
 
-void readSensorReadingFunc(void *parameter){
-  for(;;){    
+void readSensorReadingFunc(void* parameter){
+  for(;;){    	
 	if (start && (epoch - LAST_TIME) >= samp_time) {
       getSensorReadings();
 	  LAST_TIME = epoch;
@@ -356,7 +356,7 @@ void countTimeoutFunc(void *param){
 		epoch = millis() - startTime;
 		diff = epoch - startTime;
 
-		if(start && diff < MAXIMUM_TIMEOUT && (diff > timeout_time)){
+		if(start && diff < MAXIMUM_TIMEOUT && (diff > cfg.timeout)){
 			Serial.println(diff);
 			start = false;
 			memset(message, '0', sizeof(message));
