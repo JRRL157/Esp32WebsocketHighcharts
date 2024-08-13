@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define BUFFER_SIZE    512
+#define BUFFER_SIZE    1024
 #define LOAD_CELL_DOUT GPIO_NUM_32
 #define LOAD_CELL_SCK  GPIO_NUM_33
 #define CS             GPIO_NUM_5
@@ -31,17 +31,15 @@ typedef struct {
 	uint16_t sample_min_limit = 1000;
 }config_t;
 
-typedef struct {
-	float value;
-	uint16_t time;
-}sample_data_t;
-
 enum MessageType {
-	READING_DATA = 1,
+	DATA_ACQUISITION = 1,
 	SAMPLING_LIMIT = 2,
 	CFG_TIMEOUT = 3,
 	CAL_START = 4,
-	SD_STATUS = 5
+	SD_STATUS = 5,
+	VALUE_SEND = 6,
+	TIME_SEND = 7,
+	CONTINUOUS_READING = 8
 };
 
 config_t cfg;
@@ -51,9 +49,13 @@ char timestamp[9];
 char sd_status;
 File cfg_file;
 File log_file;
-sample_data_t buffer[BUFFER_SIZE];
+float value_buffer[BUFFER_SIZE];
+uint16_t time_buffer[BUFFER_SIZE];
 TaskHandle_t readingTaskHandle = NULL;
 TaskHandle_t calibrateTaskHandle = NULL;
+TaskHandle_t sendingTaskHandle = NULL;
+TaskHandle_t continuousReadingTaskHandle = NULL;
+EventGroupHandle_t eventGroup;
 
 SPIClass spi = SPIClass(VSPI);
 
@@ -70,6 +72,8 @@ void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType 
 void updateConfigFile(config_t* pcfg);
 void initWebSocket(void);
 void readingTask(void *pvParameters);
+void sendingTask(void *pvParameters);
+void continuousReadingTask(void *pvParameters);
 void resetDataArray(void);
 /* ============================================ */
 
@@ -87,6 +91,8 @@ void calibrateTask(void *pvParameters){
 		ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 		if (ulEvents != 0) {
 			
+			vTaskSuspend(continuousReadingTaskHandle);
+
 			msg[1] = 1;
 			ws.binaryAll(msg, sizeof(msg));
 			short n = 5;
@@ -110,6 +116,8 @@ void calibrateTask(void *pvParameters){
 			ws.binaryAll(msg, sizeof(msg));
 			Serial.print("Mensagem enviada para o websocket: ");
 			Serial.println(msg);
+
+			vTaskResume(continuousReadingTaskHandle);
 			ulEvents--;
 		}			 
 	}
@@ -243,7 +251,7 @@ void handleBinaryMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len
     
 	uint8_t messageType = data[0];                                 // O primeiro byte é o tipo de mensagem
     
-	if ((messageType == READING_DATA) && (len >= 9)) {             // CODIGO 1
+	if ((messageType == DATA_ACQUISITION) && (len >= 9)) {         // CODIGO 1
         Serial.println("Salvando timestamp");
 		memcpy(timestamp, &data[1], 8);                            // Copiar os 8 bytes da string
         Serial.println("Fechando timestamp");
@@ -251,7 +259,7 @@ void handleBinaryMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len
 		Serial.println("Msg de start recebida. Iniciando funcao de leitura.");
 		Serial.print("Timestamp salvo: ");
 		Serial.println(timestamp);
-        xTaskNotifyGive(readingTaskHandle);                       // Inicia leitura
+        xTaskNotifyGive(readingTaskHandle);                        // Inicia leitura
     }
 	else if ((messageType == SAMPLING_LIMIT) && (len >= 3)) {      // CODIGO 2 (ajuste de sampling_limit)
     	uint16_t number = 0;
@@ -277,7 +285,7 @@ void handleBinaryMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len
 		xTaskNotifyGive(calibrateTaskHandle);       /* chama a função de calibração */
 	}
 	else if ((messageType == SD_STATUS) && (len >= 1)) {
-		Serial.println("Recebido requisicao de status do cartao SD.");
+		//Serial.println("Recebido requisicao de status do cartao SD.");
 		char msg[2];
 		msg[0] = SD_STATUS;
 		msg[1] = sd_status;
@@ -285,6 +293,12 @@ void handleBinaryMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len
 		Serial.print("Msg sd-status enviada: ");
 		Serial.println(msg);
 	}
+	/*
+	else if ((messageType == CONTINUOUS_READING && (len >= 1))) {
+		Serial.println("Recebido requisicao de leitura continua.");
+		xTaskNotifyGive(continuousReadingTaskHandle);
+	}
+	*/
 }
 
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
@@ -322,21 +336,23 @@ void initWebSocket(void){
 }
 
 void readingTask(void *pvParameters) {
-	uint32_t ulEvents;
+	//uint32_t ulEvents;
 	float reading = 0.0;
 	uint16_t time = 0;
 	char msg[2];
   	while (1) {
-		ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    	if (ulEvents != 0) {
+		//ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    	if (ulTaskNotifyTake(pdTRUE, portMAX_DELAY) != 0) {
 
-			Serial.println("Entering task");
+			vTaskSuspend(continuousReadingTaskHandle);
+			vTaskSuspend(calibrateTaskHandle);
 
 			TickType_t time_interval = 0;
 			String filename = "";
 			uint16_t buff_index = 0;
-			msg[0] = READING_DATA;
+			msg[0] = DATA_ACQUISITION;
 			msg[1] = 1;
+			ws.binaryAll(msg, sizeof(msg));
 			String str_timestamp = String(timestamp);    /* casting to string */
 
 			filename = "/" + str_timestamp + ".csv";        /* arquivo: DDMMHHMM.csv */
@@ -376,8 +392,8 @@ void readingTask(void *pvParameters) {
 						log_file.println(time);
 					}
 					/* Envia para o buffer */
-					buffer[buff_index].value = reading;
-					buffer[buff_index].time = time;
+					value_buffer[buff_index] = reading;
+					time_buffer[buff_index] = time;
 					buff_index++;
 					vTaskDelay(pdMS_TO_TICKS(13U));
 				}
@@ -391,24 +407,70 @@ void readingTask(void *pvParameters) {
 			/* Fecha o arquivo */
 			log_file.close();
 			buff_index = 0;
+			msg[1] = 0;
 			Serial.println("Amostragem finalizada.");
-			/* envia primeiro o identificador da mensagem (nesse caso, mensagem contendo os dados da celula de carga) */
 			ws.binaryAll(msg, sizeof(msg));
-			/* envia o buffer contendo a estrutura com os dados da leitura (a ser tratado no javascript) */
-			ws.binaryAll((uint8_t*)buffer, sizeof(buffer));
-			Serial.println("Envio dos dados completado.");
-			/* limpa o buffer de dados chamando a função */
-			resetDataArray();
+
+			Serial.println("(readingTask) Task de envio notificada.");
+			xTaskNotifyGive(sendingTaskHandle);
 		}
-		ulEvents--;
+		//ulEvents--;
 	}
 }
 
 void resetDataArray(void) {
 	int i;
     for (i = 0; i < BUFFER_SIZE; i++) {
-        buffer[i].value = 0.0f;
-        buffer[i].time = 0;
+        value_buffer[i] = 0.0f;
+        time_buffer[i] = 0;
+    }
+	Serial.println("Dados do buffer resetados.");
+}
+
+void sendingTask(void *pvParameters){
+	/* Essa task entrará em ação quando a task de aquisição de dados estiver finalizada */
+	//uint32_t ulEvents;
+	char value_msg;
+	char time_msg;
+	value_msg = VALUE_SEND;
+	time_msg = TIME_SEND;
+  	while (1) {
+		//ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    	if (ulTaskNotifyTake(pdTRUE, portMAX_DELAY) != 0) {
+			Serial.println("(SendTask) Notificacao recebida.");
+			/* Mensagem indicando inicio de envio de dados de peso */
+			ws.binaryAll(&value_msg, sizeof(value_msg));
+			/* Envio dos dados de peso */
+			ws.binaryAll((uint8_t *)value_buffer, sizeof(value_buffer));
+
+			vTaskDelay(pdMS_TO_TICKS(100));
+			/* Mensagem indicando inicio de envio de dados de tempo */
+			ws.binaryAll(&time_msg, sizeof(time_msg));
+			/* Envio dos dados de tempo */
+			ws.binaryAll((uint8_t *)time_buffer, sizeof(time_buffer));
+
+			resetDataArray();
+			vTaskResume(continuousReadingTaskHandle);
+			vTaskResume(calibrateTaskHandle);
+			Serial.println("(SendTask) Task finalizada.");
+		}
+		//ulEvents--;
+	}
+}
+
+void continuousReadingTask(void *pvParameters){
+	float reading;
+	char msg;
+	msg = CONTINUOUS_READING;
+  	while (1) {
+		//Serial.println("(ContinuousTask) Enter task.");
+		/* Mensagem indicando envio de dado de leitura da célula de carga */
+		reading = loadCell.get_units(1);
+		ws.binaryAll(&msg, sizeof(msg));
+		/* Envio do dado de peso */
+		ws.binaryAll((uint8_t *)&reading, sizeof(reading));
+		//Serial.println("(ContinuousTask) Dado enviado.");
+		vTaskDelay(pdMS_TO_TICKS(1000));  // Executa a cada 1 segundo
     }
 }
 
@@ -424,8 +486,10 @@ void setup() {
 	initWebSocket();
 	checkSDconfig(pCfg);
 	initLoadCell();
-	xTaskCreatePinnedToCore(readingTask, "ReadingTask", 8192, NULL, 1, &readingTaskHandle, 0);
-	xTaskCreatePinnedToCore(calibrateTask, "calibrateTask", 8192, NULL, 1, &calibrateTaskHandle, 0);
+	xTaskCreatePinnedToCore(readingTask, "readingTask", 8192, NULL, 2, &readingTaskHandle, 0);
+	xTaskCreatePinnedToCore(calibrateTask, "calibrateTask", 8192, NULL, 2, &calibrateTaskHandle, 0);
+	xTaskCreatePinnedToCore(sendingTask, "sendingTask", 8192, NULL, 2, &sendingTaskHandle, 0);
+	xTaskCreatePinnedToCore(continuousReadingTask, "continuousReadingTask", 8192, NULL, 2, &continuousReadingTaskHandle, 0);
 }
 
 void loop() {
