@@ -119,43 +119,66 @@ function onClose(event) {
 	setTimeout(initWebSocket, 1000);
 }
 
-var chartT = new Highcharts.Chart({
-  chart: {
-    renderTo: 'chart-teste-estatico'
-  },
-  series: [
-    {
-      name: 'Force',
-	  data: seriesData,
-      type: 'line',
-      color: '#00A6A6',
-      marker: {
-        symbol: 'square',
-        radius: 3,
-        fillColor: '#00A6A6',
-      }
-    },
-  ],
-  title: {
-    text: undefined
-  },
-  xAxis: {
-    type: 'datetime',
-    dateTimeLabelFormats: { millisecond: '%M:%S.%L' }
-  },
-  yAxis: {
-    title: {
-      text: 'Force (N)'
-    }
-  },
-  credits: {
-    enabled: false
-  }
-});
-
 function plotGraph() {
-	const seriesData = timeArray.map((time, index) => [time, valueArray[index]]);
-	chartT.series[0].setData(seriesData);
+	var total = 0;
+
+	for(var j = 0; j < valueArray.length; j++){
+		total += valueArray[j];
+	}
+	var avg = total / valueArray.length;
+	var avg_array = [];
+
+	for(var j = 0; j < valueArray.length; j++){
+		avg_array[j] = avg;
+	}
+	console.log("Avg = ", avg);
+	console.log("valueArray:");
+	console.log(valueArray);
+	console.log("timeArray");
+	console.log(timeArray);
+
+	Highcharts.chart('container', {
+		chart: {
+			type: 'line'
+		},
+		title: {
+			text: 'Teste estático'
+		},
+		subtitle: {
+			text: 'Force vs time'
+		},
+		xAxis: {
+			categories: timeArray,
+			title: {
+            	text: 'Time (ms)'
+        	}
+		},
+		yAxis: {
+			title: {
+				text: 'Force (N)'
+			}
+		},
+		plotOptions: {
+			line: {
+				dataLabels: {
+					enabled: false
+				},
+				enableMouseTracking: true,
+				lineColor: ' #471cc4 '
+			}
+		},
+		series: [{
+			name: 'Força',
+			lineWidth: 0.8,
+			data: valueArray
+		},
+		{
+			name: 'Força média',
+			lineWidth: 1,
+			data: avg_array,
+			lineColor: ' #FFC300 '
+		}]
+	});
 }
 
 function onMessage(event) {
@@ -216,30 +239,37 @@ function handleDataAcquisition(dataView) {
 }
 
 function handleContinuousReading(dataView) {
-	console.log("Continuous reading received");
+	//console.log("Continuous reading received");
 	let reading;
 	reading = dataView.getFloat32(0, true).toFixed(2);
 	document.getElementById("reading-value").innerHTML = reading;
-	console.log(reading);
+	//console.log(reading);
 	continuous_reading_on = false;
 }
 
 function handleValueBufferData(dataView) {
+	valueArray.length = 0
 	for (let i = 0; i < dataView.byteLength; i += 4) {                   // float(4 bytes)
-		let value = (dataView.getFloat32(i, true) * gravity).toFixed(2); // little-endian
+		let value_str = (dataView.getFloat32(i, true) * gravity).toFixed(2); // little-endian
+		let value = parseFloat(value_str);
 		// salva os dados no array
-		valueArray.push(value);
-		console.log('Reading Data - Value:', value);
+		if (value !== 0.00) {
+			valueArray.push(value);
+			//console.log('Reading Data - Value:', value);
+		}
 	}
 	value_buffer_receive_on = false;
 }
 
 function handleTimeBufferData(dataView) {
+	timeArray.length = 0
 	for (let i = 0; i < dataView.byteLength; i += 2) { // uint16_t(2 bytes)
 		let time = (dataView.getUint16(i, true))       // little-endian
 		// salva os dados no array
-		timeArray.push(time);
-		console.log('Reading Data - Time:', time);
+		if (time !== 0) {
+			timeArray.push(time);
+			//console.log('Reading Data - Time:', time);
+		}
 	}
 	time_buffer_receive_on = false;
 	plotGraph();
