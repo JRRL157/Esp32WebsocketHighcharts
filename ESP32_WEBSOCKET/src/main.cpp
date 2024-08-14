@@ -55,7 +55,6 @@ TaskHandle_t readingTaskHandle = NULL;
 TaskHandle_t calibrateTaskHandle = NULL;
 TaskHandle_t sendingTaskHandle = NULL;
 TaskHandle_t continuousReadingTaskHandle = NULL;
-EventGroupHandle_t eventGroup;
 
 SPIClass spi = SPIClass(VSPI);
 
