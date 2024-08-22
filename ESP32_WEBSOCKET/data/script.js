@@ -111,7 +111,7 @@ function onOpen(event) {
 	while(websocket.readyState !== WebSocket.OPEN){ 
 		/* ESPERA ESTAR CONECTADO */ 
 	}
-	setInterval(getSdStatus, 60000);
+	setInterval(getSdStatus, 20000);
 }
 
 function onClose(event) {

@@ -16,7 +16,9 @@
 #define MISO		   GPIO_NUM_19
 #define MOSI           GPIO_NUM_23
 #define CLK            GPIO_NUM_18
-#define LED_ONBOARD    GPIO_NUM_2
+#define LED_CONNECTED  GPIO_NUM_27  /* LED VERDE  */
+#define LED_CALIBRATE  GPIO_NUM_26  /* LED BRANCO */
+#define LED_READING    GPIO_NUM_25  /* LED AZUL   */
 
 const IPAddress apIP = IPAddress(192,168,4,1);
 const IPAddress mask = IPAddress(255,255,255,0);
@@ -101,8 +103,12 @@ void calibrateTask(void *pvParameters){
 			Serial.println("Ponha um peso conhecido na celula");
 
 			while(n--){
+				/* pisca o led indicador de calibração por 5 segundos */
 				Serial.println(n);
-				vTaskDelay(pdMS_TO_TICKS(1000));
+				gpio_set_level(LED_CALIBRATE, 1);
+				vTaskDelay(pdMS_TO_TICKS(250));
+				gpio_set_level(LED_CALIBRATE, 0);
+				vTaskDelay(pdMS_TO_TICKS(750));
 			}
 
 			cal = loadCell.get_units(10);
@@ -292,21 +298,17 @@ void handleBinaryMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len
 		Serial.print("Msg sd-status enviada: ");
 		Serial.println(msg);
 	}
-	/*
-	else if ((messageType == CONTINUOUS_READING && (len >= 1))) {
-		Serial.println("Recebido requisicao de leitura continua.");
-		xTaskNotifyGive(continuousReadingTaskHandle);
-	}
-	*/
 }
 
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
 	switch (type) {
 	case WS_EVT_CONNECT:
 		Serial.printf("WebSocket client #%u connected from %s\n", client->id(), client->remoteIP().toString().c_str());
+		gpio_set_level(LED_CONNECTED, 1);
 		break;
 	case WS_EVT_DISCONNECT:
 		Serial.printf("WebSocket client #%u disconnected\n", client->id());
+		gpio_set_level(LED_CONNECTED, 0);
 		break;
 	case WS_EVT_DATA:
 		{
@@ -335,13 +337,13 @@ void initWebSocket(void){
 }
 
 void readingTask(void *pvParameters) {
-	//uint32_t ulEvents;
+	uint32_t ulEvents;
 	float reading = 0.0;
 	uint16_t time = 0;
 	char msg[2];
   	while (1) {
-		//ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    	if (ulTaskNotifyTake(pdTRUE, portMAX_DELAY) != 0) {
+		ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    	if (ulEvents != 0) {
 
 			vTaskSuspend(continuousReadingTaskHandle);
 			vTaskSuspend(calibrateTaskHandle);
@@ -376,7 +378,7 @@ void readingTask(void *pvParameters) {
 			/* Continua a leitura enquanto startReading for true e dentro do timeout */
 			while ((xTaskGetTickCount() - startTime) < timeout) {
 				reading = loadCell.get_units(1);
-				gpio_set_level(LED_ONBOARD, 1);
+				gpio_set_level(LED_READING, 1);
 				if (reading >= cfg.sample_min_limit) {
 					time_interval = xTaskGetTickCount() - startTime;
 					time = (uint16_t)time_interval;
@@ -391,18 +393,20 @@ void readingTask(void *pvParameters) {
 						log_file.println(time);
 					}
 					/* Envia para o buffer */
-					value_buffer[buff_index] = reading;
-					time_buffer[buff_index] = time;
-					buff_index++;
+					if (buff_index <= BUFFER_SIZE) {   /* garante que não haja estouro de buffer */
+						value_buffer[buff_index] = reading;
+						time_buffer[buff_index] = time;
+						buff_index++;
+					}
 					vTaskDelay(pdMS_TO_TICKS(13U));
 				}
 				else{
 					/* Aguarda 13ms */
-					gpio_set_level(LED_ONBOARD, 0);
+					//gpio_set_level(LED_ONBOARD, 0);
 					vTaskDelay(pdMS_TO_TICKS(13U));
 				}
 			}
-			gpio_set_level(LED_ONBOARD, 0);
+			gpio_set_level(LED_READING, 0);
 			/* Fecha o arquivo */
 			log_file.close();
 			buff_index = 0;
@@ -413,7 +417,7 @@ void readingTask(void *pvParameters) {
 			Serial.println("(readingTask) Task de envio notificada.");
 			xTaskNotifyGive(sendingTaskHandle);
 		}
-		//ulEvents--;
+		ulEvents--;
 	}
 }
 
@@ -428,14 +432,14 @@ void resetDataArray(void) {
 
 void sendingTask(void *pvParameters){
 	/* Essa task entrará em ação quando a task de aquisição de dados estiver finalizada */
-	//uint32_t ulEvents;
+	uint32_t ulEvents;
 	char value_msg;
 	char time_msg;
 	value_msg = VALUE_SEND;
 	time_msg = TIME_SEND;
   	while (1) {
-		//ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
-    	if (ulTaskNotifyTake(pdTRUE, portMAX_DELAY) != 0) {
+		ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+    	if (ulEvents != 0) {
 			Serial.println("(SendTask) Notificacao recebida.");
 			/* Mensagem indicando inicio de envio de dados de peso */
 			ws.binaryAll(&value_msg, sizeof(value_msg));
@@ -453,7 +457,7 @@ void sendingTask(void *pvParameters){
 			vTaskResume(calibrateTaskHandle);
 			Serial.println("(SendTask) Task finalizada.");
 		}
-		//ulEvents--;
+		ulEvents--;
 	}
 }
 
@@ -474,10 +478,14 @@ void continuousReadingTask(void *pvParameters){
 }
 
 void setup() {
-	gpio_set_direction(LED_ONBOARD, GPIO_MODE_OUTPUT);
-	gpio_set_level(LED_ONBOARD, 0);
 	gpio_set_direction(CS, GPIO_MODE_OUTPUT);
 	gpio_set_level(CS, 0);
+	gpio_set_direction(LED_CONNECTED, GPIO_MODE_OUTPUT);
+	gpio_set_level(LED_CONNECTED, 0);
+	gpio_set_direction(LED_CALIBRATE, GPIO_MODE_OUTPUT);
+	gpio_set_level(LED_CALIBRATE, 0);
+	gpio_set_direction(LED_READING, GPIO_MODE_OUTPUT);
+	gpio_set_level(LED_READING, 0);
 	spi.begin(CLK, MISO, MOSI, CS);
 	Serial.begin(115200);
 	initLittleFS();
