@@ -241,7 +241,7 @@ function handleDataAcquisition(dataView) {
 function handleContinuousReading(dataView) {
 	//console.log("Continuous reading received");
 	let reading;
-	reading = dataView.getFloat32(0, true).toFixed(2);
+	reading = dataView.getFloat32(0, true).toFixed(4);
 	document.getElementById("reading-value").innerHTML = reading;
 	//console.log(reading);
 	continuous_reading_on = false;

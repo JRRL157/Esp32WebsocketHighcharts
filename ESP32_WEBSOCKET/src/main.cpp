@@ -12,6 +12,7 @@
 #define BUFFER_SIZE    1024
 #define LOAD_CELL_DOUT GPIO_NUM_33
 #define LOAD_CELL_SCK  GPIO_NUM_32
+#define LOAD_CELL_GAIN 64
 #define CS             GPIO_NUM_5
 #define MISO		   GPIO_NUM_19
 #define MOSI           GPIO_NUM_23
@@ -28,7 +29,7 @@ const char* password = "12345678#!";
 
 typedef struct {
 	uint16_t timeout = 10000;
-	float scale = -268.20;
+	float scale = 22216.59;
 	float weight = 217.0;
 	uint16_t sample_min_limit = 1000;
 }config_t;
@@ -209,7 +210,7 @@ void checkSDconfig(config_t* pcfg){
 }
 
 void initLoadCell(void){
-	loadCell.begin(LOAD_CELL_DOUT, LOAD_CELL_SCK, 128);
+	loadCell.begin(LOAD_CELL_DOUT, LOAD_CELL_SCK, LOAD_CELL_GAIN);
 	loadCell.set_scale(cfg.scale);
 	loadCell.tare();
 	Serial.println("Celula de carga iniciada.\n");
@@ -283,7 +284,8 @@ void handleBinaryMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len
 	else if ((messageType == CAL_START) && (len >= 5)) {           // CODIGO 4 (ajuste de peso e chamada de calibracao)
 		float number = 0.0;
     	memcpy(&number, &data[1], sizeof(float));
-		pCfg->weight = number;
+		pCfg->weight = number / 1000;  /* converte gramas para kg */
+		Serial.println(pCfg->weight);
 		Serial.println("Arquivo atualizado e funcao de calibracao chamada.");
 		updateConfigFile(pCfg);  /* atualiza o arquivo de cnfg */
 		Serial.println("Iniciando calibracao");
@@ -341,6 +343,8 @@ void readingTask(void *pvParameters) {
 	float reading = 0.0;
 	uint16_t time = 0;
 	char msg[2];
+	/* converte o valor mínimo de leitura para float e para kg */
+	float threshold = ((float)cfg.sample_min_limit) / 1000;
   	while (1) {
 		ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     	if (ulEvents != 0) {
@@ -379,7 +383,7 @@ void readingTask(void *pvParameters) {
 			while ((xTaskGetTickCount() - startTime) < timeout) {
 				reading = loadCell.get_units(1);
 				gpio_set_level(LED_READING, 1);
-				if (reading >= cfg.sample_min_limit) {
+				if (reading >= threshold) {
 					time_interval = xTaskGetTickCount() - startTime;
 					time = (uint16_t)time_interval;
 					Serial.print("Time: ");
@@ -398,12 +402,11 @@ void readingTask(void *pvParameters) {
 						time_buffer[buff_index] = time;
 						buff_index++;
 					}
-					vTaskDelay(pdMS_TO_TICKS(13U));
+					vTaskDelay(pdMS_TO_TICKS(12U));
 				}
 				else{
-					/* Aguarda 13ms */
-					//gpio_set_level(LED_ONBOARD, 0);
-					vTaskDelay(pdMS_TO_TICKS(13U));
+					/* Aguarda 12ms */
+					vTaskDelay(pdMS_TO_TICKS(12U));
 				}
 			}
 			gpio_set_level(LED_READING, 0);
@@ -468,7 +471,9 @@ void continuousReadingTask(void *pvParameters){
   	while (1) {
 		//Serial.println("(ContinuousTask) Enter task.");
 		/* Mensagem indicando envio de dado de leitura da célula de carga */
-		reading = loadCell.get_units(1);
+		reading = loadCell.get_units(10);
+		Serial.print("Leitura: ");
+		Serial.println(reading, 4);
 		ws.binaryAll(&msg, sizeof(msg));
 		/* Envio do dado de peso */
 		ws.binaryAll((uint8_t *)&reading, sizeof(reading));
