@@ -10,8 +10,8 @@
 #include <stdlib.h>
 
 #define BUFFER_SIZE    1024
-#define LOAD_CELL_DOUT GPIO_NUM_32
-#define LOAD_CELL_SCK  GPIO_NUM_33
+#define LOAD_CELL_DOUT GPIO_NUM_33
+#define LOAD_CELL_SCK  GPIO_NUM_32
 #define CS             GPIO_NUM_5
 #define MISO		   GPIO_NUM_19
 #define MOSI           GPIO_NUM_23
