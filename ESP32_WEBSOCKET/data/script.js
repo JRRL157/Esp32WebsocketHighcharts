@@ -1,6 +1,7 @@
 var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
 var start_button_obj = document.getElementById("start-button");
+var tare_button_obj = document.getElementById("tare-button");
 var prop_mass;
 const valueArray = [];
 const timeArray = [];
@@ -53,6 +54,15 @@ function initEventListeners() {
 			console.log("Msg enviada.");
     	}
   	});
+	tare_button_obj.addEventListener("click", function(event){
+		console.log("Tare");
+		const buffer = new ArrayBuffer(1);
+		const dataView = new DataView(buffer);
+		dataView.setUint8(0, 9);
+		console.log(buffer);
+		websocket.send(buffer);
+		console.log("Msg enviada.");
+  		});
 }
 
 function getSdStatus() {

@@ -46,6 +46,7 @@
               </div>                
             </div>  
             <p><button class="button-1" id="start-button" class="button">Start reading!</button></p>
+            <p><button class="button-1" id="tare-button" class="button">Tare</button></p>
             <h2>Settings</h2>
             <div class="form-container">
               <form id="form-samplingLimit">
@@ -57,12 +58,6 @@
               <form id="form-timeout">
                 <p>Timeout(ms): <input name="timeout" input type="number" min="0" value="10000" title="Tempo máximo em que a amostragem de valores estará rodando."></p>
                 <button class="button-1" type="button" onclick="sendFormData('form-timeout')">Submit</button>
-              </form>
-            </div>
-            <div class="form-container">
-              <form id="form-propmass">
-                <p>Propellent Mass(g): <input name="propmass" input type="number" min="0" value="1000" title="Massa do propelente, em gramas."></p>
-                <button class="button-1" type="button" onclick="sendFormData('form-propmass')">Submit</button>
               </form>
             </div>
             <div class="form-container">
