@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define BUFFER_SIZE    1024
+#define BUFFER_SIZE    5000
 #define LOAD_CELL_DOUT GPIO_NUM_33
 #define LOAD_CELL_SCK  GPIO_NUM_32
 #define LOAD_CELL_GAIN 64
@@ -42,7 +42,8 @@ enum MessageType {
 	SD_STATUS = 5,
 	VALUE_SEND = 6,
 	TIME_SEND = 7,
-	CONTINUOUS_READING = 8
+	CONTINUOUS_READING = 8,
+	TARE = 9
 };
 
 config_t cfg;
@@ -89,6 +90,7 @@ void calibrateTask(void *pvParameters){
 	uint32_t ulEvents;
 	char msg[2];
 	msg[0] = CAL_START;
+	UBaseType_t highWaterMark;
 	while(1) {
 		ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
 		if (ulEvents != 0) {
@@ -122,6 +124,10 @@ void calibrateTask(void *pvParameters){
 			ws.binaryAll(msg, sizeof(msg));
 			Serial.print("Mensagem enviada para o websocket: ");
 			Serial.println(msg);
+
+			highWaterMark = uxTaskGetStackHighWaterMark(NULL);
+			Serial.print("[calibrateTask] Bytes ate o fim da stack: ");
+			Serial.println(highWaterMark);
 
 			vTaskResume(continuousReadingTaskHandle);
 			ulEvents--;
@@ -235,6 +241,10 @@ void initWiFi(void) {
     	Serial.print('.');
     	vTaskDelay(pdMS_TO_TICKS(1000));
   	}
+	Serial.print("Wifi connected with IP: ");
+	Serial.println(WiFi.localIP());
+	Serial.print("Wifi strengh: ");
+	Serial.println(WiFi.RSSI());
 }
 
 void updateConfigFile(config_t* pcfg){
@@ -300,6 +310,10 @@ void handleBinaryMessage(AsyncWebSocketClient *client, uint8_t *data, size_t len
 		Serial.print("Msg sd-status enviada: ");
 		Serial.println(msg);
 	}
+	else if ((messageType == TARE) && (len >= 1)) {
+		Serial.println("Tara acionada");
+		loadCell.tare(5);
+	}
 }
 
 void onEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
@@ -345,6 +359,7 @@ void readingTask(void *pvParameters) {
 	char msg[2];
 	/* converte o valor mínimo de leitura para float e para kg */
 	float threshold = ((float)cfg.sample_min_limit) / 1000;
+	UBaseType_t highWaterMark;
   	while (1) {
 		ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     	if (ulEvents != 0) {
@@ -379,7 +394,7 @@ void readingTask(void *pvParameters) {
 			TickType_t startTime = xTaskGetTickCount();
 			TickType_t timeout = pdMS_TO_TICKS(cfg.timeout);
 
-			/* Continua a leitura enquanto startReading for true e dentro do timeout */
+			/* Continua a leitura enquanto a task estiver dentro do timeout */
 			while ((xTaskGetTickCount() - startTime) < timeout) {
 				reading = loadCell.get_units(1);
 				gpio_set_level(LED_READING, 1);
@@ -397,7 +412,7 @@ void readingTask(void *pvParameters) {
 						log_file.println(time);
 					}
 					/* Envia para o buffer */
-					if (buff_index <= BUFFER_SIZE) {   /* garante que não haja estouro de buffer */
+					if (buff_index < BUFFER_SIZE) {   /* garante que não haja estouro de buffer */
 						value_buffer[buff_index] = reading;
 						time_buffer[buff_index] = time;
 						buff_index++;
@@ -418,6 +433,9 @@ void readingTask(void *pvParameters) {
 			ws.binaryAll(msg, sizeof(msg));
 
 			Serial.println("(readingTask) Task de envio notificada.");
+			highWaterMark = uxTaskGetStackHighWaterMark(NULL);
+			Serial.print("[readingTask] Bytes ate o fim da stack: ");
+			Serial.println(highWaterMark);
 			xTaskNotifyGive(sendingTaskHandle);
 		}
 		ulEvents--;
@@ -440,6 +458,7 @@ void sendingTask(void *pvParameters){
 	char time_msg;
 	value_msg = VALUE_SEND;
 	time_msg = TIME_SEND;
+	UBaseType_t highWaterMark;
   	while (1) {
 		ulEvents = ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
     	if (ulEvents != 0) {
@@ -456,6 +475,9 @@ void sendingTask(void *pvParameters){
 			ws.binaryAll((uint8_t *)time_buffer, sizeof(time_buffer));
 
 			resetDataArray();
+			highWaterMark = uxTaskGetStackHighWaterMark(NULL);
+			Serial.print("[sendingTask] Bytes ate o fim da stack: ");
+			Serial.println(highWaterMark);
 			vTaskResume(continuousReadingTaskHandle);
 			vTaskResume(calibrateTaskHandle);
 			Serial.println("(SendTask) Task finalizada.");
@@ -468,6 +490,7 @@ void continuousReadingTask(void *pvParameters){
 	float reading;
 	char msg;
 	msg = CONTINUOUS_READING;
+	UBaseType_t highWaterMark;
   	while (1) {
 		//Serial.println("(ContinuousTask) Enter task.");
 		/* Mensagem indicando envio de dado de leitura da célula de carga */
@@ -478,6 +501,9 @@ void continuousReadingTask(void *pvParameters){
 		/* Envio do dado de peso */
 		ws.binaryAll((uint8_t *)&reading, sizeof(reading));
 		//Serial.println("(ContinuousTask) Dado enviado.");
+		highWaterMark = uxTaskGetStackHighWaterMark(NULL);
+		Serial.print("[continuousTask] Bytes ate o fim da stack: ");
+		Serial.println(highWaterMark);
 		vTaskDelay(pdMS_TO_TICKS(1000));  // Executa a cada 1 segundo
     }
 }
@@ -498,10 +524,10 @@ void setup() {
 	initWebSocket();
 	checkSDconfig(pCfg);
 	initLoadCell();
-	xTaskCreatePinnedToCore(readingTask, "readingTask", 8192, NULL, 2, &readingTaskHandle, 0);
-	xTaskCreatePinnedToCore(calibrateTask, "calibrateTask", 8192, NULL, 2, &calibrateTaskHandle, 0);
-	xTaskCreatePinnedToCore(sendingTask, "sendingTask", 8192, NULL, 2, &sendingTaskHandle, 0);
-	xTaskCreatePinnedToCore(continuousReadingTask, "continuousReadingTask", 8192, NULL, 2, &continuousReadingTaskHandle, 0);
+	xTaskCreatePinnedToCore(readingTask, "readingTask", 3200, NULL, 2, &readingTaskHandle, 1);
+	xTaskCreatePinnedToCore(calibrateTask, "calibrateTask", 1800, NULL, 2, &calibrateTaskHandle, 1);
+	xTaskCreatePinnedToCore(sendingTask, "sendingTask", 1800, NULL, 2, &sendingTaskHandle, 1);
+	xTaskCreatePinnedToCore(continuousReadingTask, "continuousReadingTask", 1800, NULL, 2, &continuousReadingTaskHandle, 1);
 }
 
 void loop() {
