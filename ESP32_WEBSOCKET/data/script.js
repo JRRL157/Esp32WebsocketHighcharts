@@ -1,6 +1,7 @@
 var gateway = `ws://${window.location.hostname}/ws`;
 var websocket;
 var start_button_obj = document.getElementById("start-button");
+var tare_button_obj = document.getElementById("tare-button");
 var prop_mass;
 const valueArray = [];
 const timeArray = [];
@@ -9,14 +10,6 @@ const gravity = 9.806;
 var continuous_reading_on = false;
 var value_buffer_receive_on = false;
 var time_buffer_receive_on = false;
-
-/* 
-  ===== key ====== | ======= value =======
-  [1, timestamp] -> Start sampling with timestamp
-  [2, value] -> sample limit cfg
-  [3, value] -> timeout cfg
-  [4, value] -> weight (calibrate)
-*/
 
 // Init web socket when the page loads
 window.addEventListener('load', onload);
@@ -53,6 +46,15 @@ function initEventListeners() {
 			console.log("Msg enviada.");
     	}
   	});
+	tare_button_obj.addEventListener("click", function(event){
+		console.log("Tare");
+		const buffer = new ArrayBuffer(1);
+		const dataView = new DataView(buffer);
+		dataView.setUint8(0, 9);
+		console.log(buffer);
+		websocket.send(buffer);
+		console.log("Msg enviada.");
+  		});
 }
 
 function getSdStatus() {
@@ -86,12 +88,6 @@ function sendFormData(formId) {
 		dataView3.setUint16(1, formElements, true);  // envia, na segunda posição do buffer, o valor do timeout (máx 65535)
 		
 		websocket.send(buffer3);
-	}
-	else if(formId == "form-propmass"){
-
-		var formElements = document.forms[formId].elements['propmass'].value;
-		prop_mass = formElements;
-		console.log("Form prop mass: ", formElements);
 	}
 	else if(formId == "form-weight"){
 
@@ -145,17 +141,17 @@ function plotGraph() {
 			text: 'Teste estático'
 		},
 		subtitle: {
-			text: 'Force vs time'
+			text: 'Força vs tempo'
 		},
 		xAxis: {
 			categories: timeArray,
 			title: {
-            	text: 'Time (ms)'
+            	text: 'Tempo (ms)'
         	}
 		},
 		yAxis: {
 			title: {
-				text: 'Force (N)'
+				text: 'Força (N)'
 			}
 		},
 		plotOptions: {
@@ -230,10 +226,10 @@ function onMessage(event) {
 
 function handleDataAcquisition(dataView) {
 	if (dataView.getUint8(1) == 1) {
-		document.getElementById("read-info").innerHTML = "Running";
+		document.getElementById("read-info").innerHTML = "Ativo";
 	}
 	else {
-		document.getElementById("read-info").innerHTML = "Stopped";
+		document.getElementById("read-info").innerHTML = "Parado";
 	}
 	data_acquisition_on = false;
 }
@@ -278,19 +274,19 @@ function handleTimeBufferData(dataView) {
 function handleSdMessage(dataView) {
 	// pula o primeiro byte, offset = 1
 	if (dataView.getUint8(1) == 1) {
-		document.getElementById("sd-info").innerHTML = "OK!";
+		document.getElementById("sd-info").innerHTML = "SD ok!";
 	}
 	else {
-		document.getElementById("sd-info").innerHTML = "Error!";
+		document.getElementById("sd-info").innerHTML = "Erro!";
 	}
 }
 
 function handleCalibrateMessage(dataView) {
 	if (dataView.getUint8(1) == 1) {
-		document.getElementById("cal-info").innerHTML = "Running";
+		document.getElementById("cal-info").innerHTML = "Calibrando...";
 	}
 	else {
-		document.getElementById("cal-info").innerHTML = "Stopped";
+		document.getElementById("cal-info").innerHTML = "Parado";
 	}
 }
 
