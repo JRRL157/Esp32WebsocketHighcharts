@@ -99,7 +99,7 @@ void calibrateTask(void *pvParameters){
 
 			msg[1] = 1;
 			ws.binaryAll(msg, sizeof(msg));
-			short n = 5;
+			short n = 10;    /* 10 segundos de delay para botar o peso de calibração */
 			float cal = 0.0;
 			loadCell.set_scale();
 			loadCell.tare();
